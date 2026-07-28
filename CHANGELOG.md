@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0] - 2026-07-28
+
+### Added
+- **TanStack Router 1.170.18** - File-based routing, used instead of `react-router-dom`
+  - `@tanstack/router-plugin` (Vite plugin) - auto-generates `src/routeTree.gen.ts` with code splitting
+  - `@tanstack/react-router-devtools` - in-app route devtools
+  - `src/routes/__root.tsx` - root layout with `<Outlet />`
+  - `src/routes/index.tsx` - `/` route (moved from `src/App.tsx`)
+  - `src/routes/about.tsx` - `/about` route, demonstrates `Link` navigation to/from `/`
+- **TanStack Form 1.33.2** - Type-safe, headless form state management
+- **Zod 4.4.3** - Schema validation, wired into TanStack Form via `validators.onChange`
+- Demo signup form (name + email) on the `/` route showing TanStack Form + Zod validation together
+- `@typescript/native-preview` (`tsgo`) - native Go TypeScript compiler binary for faster local type-checking
+
+### Changed
+- `src/App.tsx` renamed to `src/routes/index.tsx`
+- `src/renderer.tsx` now creates a router (`createRouter`) from the generated route tree and renders `<RouterProvider>` instead of `<App />` directly
+- `vite.renderer.config.ts` - added `tanstackRouter` plugin ahead of `react()`
+
+### Fixed
+- `tsconfig.json` - removed dead `baseUrl` option (TS7/tsgo rejects it: `TS5102`); `paths` already resolves aliases explicitly
+- `tsconfig.json` - added `vite/client` to `types` so `.css` side-effect imports type-check
+
+### Removed
+- `typescript` package - superseded by `@typescript/native-preview` (`tsgo`) for type-checking
+
 ## [1.0.0] - 2026-07-28
 
 ### Added

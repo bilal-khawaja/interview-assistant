@@ -10,6 +10,9 @@ A modern, ultra-fast Electron application boilerplate built with the latest blee
 - **[TypeScript](https://www.typescriptlang.org/)** 7.0 - **Go-based compiler (8-12x faster builds!)**
 - **[Tailwind CSS](https://tailwindcss.com/)** v4.3 - Latest utility-first CSS framework
 - **[shadcn/ui](https://ui.shadcn.com/)** - Beautiful, accessible component library
+- **[TanStack Router](https://tanstack.com/router)** - Type-safe, file-based routing (used instead of `react-router-dom`)
+- **[TanStack Form](https://tanstack.com/form)** - Type-safe, headless form state management
+- **[Zod](https://zod.dev/)** - TypeScript-first schema validation, used for form validation
 
 ## ⚡ Performance
 
@@ -28,6 +31,8 @@ This boilerplate combines the fastest tools available in 2026:
 - 🐹 **TypeScript 7 (Go)** - Native compiler with 8-12x faster type-checking
 - 🎨 **Tailwind CSS v4** - Latest utility-first CSS with native performance
 - 🧩 **shadcn/ui** - 50+ beautiful, accessible components ready to use
+- 🧭 **TanStack Router** - File-based routing with full type safety
+- 📋 **TanStack Form + Zod** - Type-safe forms with schema validation
 - 🔒 **Secure by Default** - Context isolation enabled, node integration disabled
 - 📝 **Full Type Safety** - Across main and renderer processes
 - 🏗️ **Production Ready** - Optimized build with Electron Forge
@@ -80,8 +85,12 @@ Creates platform-specific installers:
 ├── src/
 │   ├── main.ts              # Electron main process
 │   ├── preload.ts           # Preload script for secure IPC
-│   ├── renderer.tsx         # React entry point
-│   ├── App.tsx              # Main React component
+│   ├── renderer.tsx         # React entry point, mounts RouterProvider
+│   ├── routeTree.gen.ts     # Auto-generated route tree (TanStack Router)
+│   ├── routes/
+│   │   ├── __root.tsx       # Root layout (Outlet + Router Devtools)
+│   │   ├── index.tsx        # `/` route - tech stack cards + TanStack Form + Zod demo
+│   │   └── about.tsx        # `/about` route - demonstrates Link navigation
 │   ├── index.css            # Tailwind CSS v4 imports & theme
 │   ├── lib/
 │   │   └── utils.ts         # Utility functions (cn helper)
@@ -142,6 +151,42 @@ function MyComponent() {
 - **Feedback**: Alert, Toast, Progress, Skeleton
 - **Data Display**: Table, Avatar, Badge, Separator, Calendar
 - **Overlays**: Popover, Tooltip, Hover Card, Context Menu
+
+## 🧭 Routing (TanStack Router)
+
+File-based routing — used instead of `react-router-dom`. Every file in `src/routes/` becomes a route; the tree is auto-generated into `src/routeTree.gen.ts` on dev/build (do not edit that file by hand).
+
+```tsx
+// src/routes/about.tsx
+import { createFileRoute } from '@tanstack/react-router';
+
+export const Route = createFileRoute('/about')({
+  component: () => <div>About page</div>,
+});
+```
+
+`src/routes/__root.tsx` is the shared layout (renders `<Outlet />` + Router Devtools). Add a new page by adding a new file under `src/routes/`.
+
+Working example: the `/` route has a "TanStack Router" card with a `Link` to `/about`; `/about` links back with `Link to="/"`.
+
+## 📋 Forms (TanStack Form + Zod)
+
+Type-safe form state via `@tanstack/react-form`, validated with `zod` schemas. See the working example in `src/routes/index.tsx`.
+
+```tsx
+import { useForm } from '@tanstack/react-form';
+import { z } from 'zod';
+
+const schema = z.object({
+  email: z.email(),
+});
+
+const form = useForm({
+  defaultValues: { email: '' },
+  validators: { onChange: schema },
+  onSubmit: ({ value }) => console.log(value),
+});
+```
 
 ## 🔧 Configuration
 
@@ -271,6 +316,9 @@ This boilerplate follows Electron security best practices:
 - [shadcn/ui Documentation](https://ui.shadcn.com/)
 - [Tailwind CSS v4](https://tailwindcss.com/)
 - [Electron Forge](https://www.electronforge.io/)
+- [TanStack Router](https://tanstack.com/router/latest)
+- [TanStack Form](https://tanstack.com/form/latest)
+- [Zod](https://zod.dev/)
 
 ## 📄 License
 
