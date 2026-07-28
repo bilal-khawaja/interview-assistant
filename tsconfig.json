@@ -16,14 +16,14 @@
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": true,
     "sourceMap": true,
-    "baseUrl": ".",
     "outDir": "dist",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
     "types": [
-      "@electron-forge/plugin-vite"
+      "@electron-forge/plugin-vite",
+      "vite/client"
     ],
     "paths": {
       "@/*": [

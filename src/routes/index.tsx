@@ -1,7 +1,12 @@
 import { useState } from 'react';
+import { createFileRoute } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+
+export const Route = createFileRoute('/')({
+    component: App,
+});
 
 function App() {
     const [count, setCount] = useState(0);
@@ -120,5 +125,3 @@ function App() {
         </div>
     );
 }
-
-export default App;
