@@ -131,6 +131,25 @@ function App() {
                             <Badge variant="secondary">Schema-validated</Badge>
                         </CardContent>
                     </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <span>🤖</span> TanStack AI
+                            </CardTitle>
+                            <CardDescription>
+                                Streaming OpenAI chat, runtime API key
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="flex items-center gap-2">
+                            <Badge variant="secondary">Streaming</Badge>
+                            <Link to="/ai">
+                                <Button size="sm" variant="outline">
+                                    Visit /ai
+                                </Button>
+                            </Link>
+                        </CardContent>
+                    </Card>
                 </div>
 
                 {/* Interactive Demo Card */}

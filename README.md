@@ -13,6 +13,7 @@ A modern, ultra-fast Electron application boilerplate built with the latest blee
 - **[TanStack Router](https://tanstack.com/router)** - Type-safe, file-based routing (used instead of `react-router-dom`)
 - **[TanStack Form](https://tanstack.com/form)** - Type-safe, headless form state management
 - **[Zod](https://zod.dev/)** - TypeScript-first schema validation, used for form validation
+- **[TanStack AI](https://tanstack.com/ai)** - Provider-agnostic AI SDK; OpenAI chat streamed from the Electron main process to the renderer via IPC
 
 ## ⚡ Performance
 
@@ -33,6 +34,7 @@ This boilerplate combines the fastest tools available in 2026:
 - 🧩 **shadcn/ui** - 50+ beautiful, accessible components ready to use
 - 🧭 **TanStack Router** - File-based routing with full type safety
 - 📋 **TanStack Form + Zod** - Type-safe forms with schema validation
+- 🤖 **TanStack AI** - Streaming OpenAI chat, API key + prompt entered at runtime, no server needed
 - 🔒 **Secure by Default** - Context isolation enabled, node integration disabled
 - 📝 **Full Type Safety** - Across main and renderer processes
 - 🏗️ **Production Ready** - Optimized build with Electron Forge
@@ -90,7 +92,8 @@ Creates platform-specific installers:
 │   ├── routes/
 │   │   ├── __root.tsx       # Root layout (Outlet + Router Devtools)
 │   │   ├── index.tsx        # `/` route - tech stack cards + TanStack Form + Zod demo
-│   │   └── about.tsx        # `/about` route - demonstrates Link navigation
+│   │   ├── about.tsx        # `/about` route - demonstrates Link navigation
+│   │   └── ai.tsx           # `/ai` route - TanStack AI streaming OpenAI chat demo
 │   ├── index.css            # Tailwind CSS v4 imports & theme
 │   ├── lib/
 │   │   └── utils.ts         # Utility functions (cn helper)
@@ -187,6 +190,38 @@ const form = useForm({
   onSubmit: ({ value }) => console.log(value),
 });
 ```
+
+## 🤖 AI Chat (TanStack AI)
+
+Visit `/ai` for a working OpenAI chat demo built on [`@tanstack/ai`](https://tanstack.com/ai/latest/docs/getting-started/overview) + `@tanstack/ai-openai`. shadcn `Select` (model), `Input` (API key), `Textarea` (prompt/output), and `Switch` (streaming toggle) — API key is session-only state, never persisted to disk.
+
+Because `@tanstack/ai`'s `openaiText()` factory only reads the key from `OPENAI_API_KEY`, and this boilerplate takes the key from a runtime input instead, the key is sent over IPC to the Electron **main** process, where `createOpenaiChat(model, apiKey)` builds the adapter and `chat()` runs — the key never touches a network call from the renderer or gets bundled into any request the renderer can see.
+
+```typescript
+// src/main.ts (simplified)
+import { chat } from '@tanstack/ai';
+import { createOpenaiChat } from '@tanstack/ai-openai';
+
+ipcMain.handle('ai:chat', async (event, req) => {
+  const adapter = createOpenaiChat(req.model, req.apiKey);
+  const messages = [{ role: 'user', content: req.prompt }];
+
+  if (!req.stream) {
+    return { text: await chat({ adapter, messages, stream: false }) };
+  }
+
+  for await (const chunk of chat({ adapter, messages, stream: true })) {
+    if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+      event.sender.send('ai:chunk', { id: req.id, delta: chunk.delta });
+    }
+  }
+  event.sender.send('ai:done', { id: req.id });
+});
+```
+
+Renderer side calls `window.electron.aiChat(...)` (exposed via `src/preload.ts`) and listens for `ai:chunk` / `ai:done` / `ai:error` events to build up the streamed output — see `src/routes/ai.tsx`.
+
+Supported models (from `@tanstack/ai-openai`'s real model list): `gpt-5.2`, `gpt-5.2-pro`, `gpt-5.1`, `gpt-5`, `gpt-5-mini`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini`.
 
 ## 🔧 Configuration
 
@@ -318,6 +353,7 @@ This boilerplate follows Electron security best practices:
 - [Electron Forge](https://www.electronforge.io/)
 - [TanStack Router](https://tanstack.com/router/latest)
 - [TanStack Form](https://tanstack.com/form/latest)
+- [TanStack AI](https://tanstack.com/ai/latest)
 - [Zod](https://zod.dev/)
 
 ## 📄 License
