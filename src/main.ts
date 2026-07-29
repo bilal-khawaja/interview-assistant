@@ -1,8 +1,22 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import 'dotenv/config';
+import { app, BrowserWindow, session } from 'electron';
 import path from 'node:path';
+import dns from 'node:dns';
+
+// Node's resolver tries IPv6 first by default and can hard-fail
+// (ENOTFOUND) on networks where IPv6 is broken, even though Chromium's
+// own resolver (used by the renderer) works fine. Main-process fetch calls
+// (e.g. minting the realtime token) go through Node's resolver, so this
+// must be set here.
+dns.setDefaultResultOrder('ipv4first');
 import started from 'electron-squirrel-startup';
-import { chat } from '@tanstack/ai';
-import { createOpenaiChat } from '@tanstack/ai-openai';
+import { registerIpcMain } from '@egoist/tipc/main';
+import { AiChatService } from './ai/services/ai-chat.service';
+import { createAiChatRouter } from './ai/controllers/ai-chat.router';
+import { OpenaiChatAdapterFactory } from './ai/adapters/openai.adapter';
+import { AiRealtimeService } from './ai/services/ai-realtime.service';
+import { createAiRealtimeRouter } from './ai/controllers/ai-realtime.router';
+import { OpenaiRealtimeTokenAdapterFactory } from './ai/adapters/openai-realtime-token.adapter';
 
 // Handle Squirrel events on Windows (install/update/uninstall)
 if (started) {
@@ -29,46 +43,27 @@ const createWindow = () => {
   }
 };
 
-type AiChatRequest = {
-  id: string;
-  apiKey: string;
-  model: string;
-  prompt: string;
-  stream: boolean;
+const aiChatService = new AiChatService(new OpenaiChatAdapterFactory());
+const aiRealtimeService = new AiRealtimeService(new OpenaiRealtimeTokenAdapterFactory());
+
+const router = {
+  ai: {
+    ...createAiChatRouter(aiChatService),
+    ...createAiRealtimeRouter(aiRealtimeService),
+  },
 };
+registerIpcMain(router);
 
-ipcMain.handle('ai:chat', async (event, req: AiChatRequest) => {
-  const adapter = createOpenaiChat(req.model as Parameters<typeof createOpenaiChat>[0], req.apiKey);
-  const messages = [{ role: 'user' as const, content: req.prompt }];
+export type AppRouter = typeof router;
 
-  if (!req.stream) {
-    try {
-      const text = await chat({ adapter, messages, stream: false });
-      return { text };
-    } catch (error) {
-      return { error: error instanceof Error ? error.message : String(error) };
-    }
-  }
-
-  const sender = event.sender;
-  try {
-    const stream = chat({ adapter, messages, stream: true });
-    for await (const chunk of stream) {
-      if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
-        sender.send('ai:chunk', { id: req.id, delta: chunk.delta });
-      }
-    }
-    sender.send('ai:done', { id: req.id });
-  } catch (error) {
-    sender.send('ai:error', {
-      id: req.id,
-      message: error instanceof Error ? error.message : String(error),
-    });
-  }
-  return null;
+app.whenReady().then(() => {
+  // Realtime voice chat needs the mic (getUserMedia) — Electron denies media
+  // permission requests by default unless explicitly allowed here.
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(permission === 'media');
+  });
+  createWindow();
 });
-
-app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

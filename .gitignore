@@ -90,8 +90,15 @@ typings/
 # Vite
 .vite/
 
+# TanStack (Router dev cache, Start, etc.)
+.tanstack/
+
+# Claude Code local config
+.claude/
+
 # Electron-Forge
 out/
+dist/
 
 # IDE
 .vscode/
@@ -99,3 +106,6 @@ out/
 *.swp
 *.swo
 *~
+
+# TanStack Router generated route tree
+routeTree.gen.ts

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { tipcClient, rendererHandlers } from '@/lib/tipc-client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
@@ -32,7 +32,6 @@ const MODELS = [
 ] as const;
 
 function AiChat() {
-    const [apiKey, setApiKey] = useState('');
     const [model, setModel] = useState<string>(MODELS[0].value);
     const [prompt, setPrompt] = useState('');
     const [stream, setStream] = useState(true);
@@ -40,8 +39,10 @@ function AiChat() {
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
+    const chatMutation = tipcClient.ai.chat.useMutation();
+
     const handleSend = async () => {
-        if (!apiKey || !prompt) return;
+        if (!prompt) return;
         setLoading(true);
         setError(null);
         setOutput('');
@@ -49,16 +50,16 @@ function AiChat() {
         const id = crypto.randomUUID();
 
         if (stream) {
-            const offChunk = window.electron.onAiChunk((data) => {
+            const offChunk = rendererHandlers.onAiChunk.listen((data) => {
                 if (data.id !== id) return;
                 setOutput((prev) => prev + data.delta);
             });
-            const offDone = window.electron.onAiDone((data) => {
+            const offDone = rendererHandlers.onAiDone.listen((data) => {
                 if (data.id !== id) return;
                 setLoading(false);
                 cleanup();
             });
-            const offError = window.electron.onAiError((data) => {
+            const offError = rendererHandlers.onAiError.listen((data) => {
                 if (data.id !== id) return;
                 setError(data.message);
                 setLoading(false);
@@ -70,11 +71,11 @@ function AiChat() {
                 offError();
             };
 
-            await window.electron.aiChat({ id, apiKey, model, prompt, stream: true });
+            await chatMutation.mutateAsync({ id, model, prompt, stream: true });
             return;
         }
 
-        const result = await window.electron.aiChat({ id, apiKey, model, prompt, stream: false });
+        const result = await chatMutation.mutateAsync({ id, model, prompt, stream: false });
         setLoading(false);
         if (result?.error) {
             setError(result.error);
@@ -94,17 +95,6 @@ function AiChat() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="apiKey">OpenAI API key</Label>
-                            <Input
-                                id="apiKey"
-                                type="password"
-                                placeholder="sk-..."
-                                value={apiKey}
-                                onChange={(e) => setApiKey(e.target.value)}
-                            />
-                        </div>
-
                         <div className="space-y-2">
                             <Label htmlFor="model">Model</Label>
                             <Select value={model} onValueChange={setModel}>
@@ -140,7 +130,7 @@ function AiChat() {
                         <Button
                             className="w-full"
                             onClick={handleSend}
-                            disabled={loading || !apiKey || !prompt}
+                            disabled={loading || !prompt}
                         >
                             {loading ? 'Sending...' : 'Send'}
                         </Button>

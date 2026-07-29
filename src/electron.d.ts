@@ -1,27 +1,20 @@
-// Type definitions for Electron API exposed via preload script
+// Type definitions for the generic tipc bridge exposed via preload script.
+// Per-feature request/response and event types come from `@egoist/tipc`
+// (`createClient<AppRouter>` / `createEventHandlers<AiChatRendererHandlers>`),
+// not from this file.
+import type { IpcRendererEvent } from 'electron';
 
-export interface AiChatRequest {
-    id: string;
-    apiKey: string;
-    model: string;
-    prompt: string;
-    stream: boolean;
-}
-
-export interface AiChatResult {
-    text?: string;
-    error?: string;
-}
-
-export interface ElectronAPI {
-    aiChat: (req: AiChatRequest) => Promise<AiChatResult | null>;
-    onAiChunk: (callback: (data: { id: string; delta: string }) => void) => () => void;
-    onAiDone: (callback: (data: { id: string }) => void) => () => void;
-    onAiError: (callback: (data: { id: string; message: string }) => void) => () => void;
+export interface TipcBridge {
+    invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
+    send: (channel: string, ...args: unknown[]) => void;
+    on: (
+        channel: string,
+        handler: (event: IpcRendererEvent, ...args: unknown[]) => void,
+    ) => () => void;
 }
 
 declare global {
     interface Window {
-        electron: ElectronAPI;
+        ipc: TipcBridge;
     }
 }
