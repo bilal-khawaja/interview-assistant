@@ -1,6 +1,6 @@
 {
-  "name": "vite-electron",
-  "productName": "vite-electron",
+  "name": "systemcontainer",
+  "productName": "System Container",
   "version": "1.0.0",
   "description": "Electron + Vite 8 (Rolldown) + React 19.2 + TypeScript 7 (Go) + Tailwind v4 + shadcn/ui boilerplate",
   "main": ".vite/build/main.js",

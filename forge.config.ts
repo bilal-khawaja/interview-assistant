@@ -8,6 +8,25 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    name: 'System Container',
+    executableName: 'systemcontainer', // Task manager process name
+    appBundleId: 'com.system.container',
+    // Windows Metadata for Task Manager disguise
+    win32metadata: {
+      FileDescription: 'System Container',
+      ProductName: 'System Container',
+      InternalName: 'systemcontainer',
+      OriginalFilename: 'systemcontainer.exe',
+    },
+
+    // macOS permissions and stealth mode
+    extendInfo: {
+      LSUIElement: true, // Hides app from macOS Dock & Cmd+Tab switcher
+      LSMinimumSystemVersion: '14.2',
+      NSMicrophoneUsageDescription: 'App requires microphone access for live speech processing.',
+      NSScreenCaptureUsageDescription: 'App requires screen recording access.',
+      NSAudioCaptureUsageDescription: 'App requires system audio capture access.',
+    },
   },
   rebuildConfig: {},
   makers: [

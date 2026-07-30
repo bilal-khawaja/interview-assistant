@@ -1,19 +1,12 @@
-import { useState } from 'react';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { createFileRoute } from '@tanstack/react-router';
 import { tipcClient, rendererHandlers } from '@/lib/tipc-client';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
+import { AppSidebar } from '@/layout/sidebar';
+import { useStreamSetting } from '@/lib/use-stream-setting';
+import { IconChevronUp, IconSend } from '@tabler/icons-react';
 
 export const Route = createFileRoute('/ai')({
     component: AiChat,
@@ -34,12 +27,20 @@ const MODELS = [
 function AiChat() {
     const [model, setModel] = useState<string>(MODELS[0].value);
     const [prompt, setPrompt] = useState('');
-    const [stream, setStream] = useState(true);
+    const [stream] = useStreamSetting();
     const [output, setOutput] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [modelMenuOpen, setModelMenuOpen] = useState(false);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     const chatMutation = tipcClient.ai.chat.useMutation();
+    const modelLabel = MODELS.find((m) => m.value === model)?.label ?? model;
+
+    const growTextarea = (el: HTMLTextAreaElement) => {
+        el.style.height = 'auto';
+        el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+    };
 
     const handleSend = async () => {
         if (!prompt) return;
@@ -85,75 +86,98 @@ function AiChat() {
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-background p-4">
-            <div className="mx-auto w-full max-w-2xl space-y-6">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>🤖 TanStack AI</CardTitle>
-                        <CardDescription>
-                            OpenAI chat via @tanstack/ai, streamed straight from the Electron main process.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="model">Model</Label>
-                            <Select value={model} onValueChange={setModel}>
-                                <SelectTrigger id="model">
-                                    <SelectValue placeholder="Select model" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {MODELS.map((m) => (
-                                        <SelectItem key={m.value} value={m.value}>
-                                            {m.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+        <SidebarProvider style={{ '--sidebar-width': '20rem' } as CSSProperties}>
+            <AppSidebar />
+            <SidebarInset>
+            <div className="min-h-screen bg-background p-4">
+
+            <div className="mx-auto w-full max-w-2xl space-y-10 py-16">
+
+                {error && (
+                    <Alert variant="destructive">
+                        <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                )}
+
+                <div className="min-h-40 whitespace-pre-wrap text-base leading-relaxed">
+                    {output}
+                </div>
+
+{!output && !loading && (
+    <div className="flex justify-center mb-6">
+        <h1 className="absolute bottom-90 pointer-events-none cursor-default select-none text-3xl font-semibold tracking-tight text-slate-950 [text-shadow:_0_0_10px_rgba(0,0,0,0.3),_0_0_20px_rgba(0,0,0,0.2),_0_0_40px_rgba(0,0,0,0.15)]">
+            The floor is yours
+        </h1>
+    </div>
+)}
+
+                <div className="relative">
+                    {modelMenuOpen && (
+                        <div className="absolute bottom-full right-0 mb-2 w-32 origin-bottom-right animate-in fade-in slide-in-from-bottom-2 rounded-xl border bg-popover p-1 shadow-lg duration-150">
+                            {MODELS.map((m) => (
+                                <button
+                                    key={m.value}
+                                    type="button"
+                                    onClick={() => {
+                                        setModel(m.value);
+                                        setModelMenuOpen(false);
+                                    }}
+                                    className={`w-full rounded-md px-2 py-1 text-left text-xs hover:bg-accent ${
+                                        m.value === model ? 'font-semibold text-foreground' : 'text-muted-foreground'
+                                    }`}
+                                >
+                                    {m.label}
+                                </button>
+                            ))}
                         </div>
+                    )}
+                    <div className="relative mx-auto w-full max-w-xl">
+                    <div className="flex items-center gap-2 rounded-full border border-border/60 bg-[#f9faf9] p-1.5 shadow-md transition-shadow hover:shadow-lg">
+                        <textarea
+                            ref={textareaRef}
+                            id="prompt"
+                            placeholder="Ask something..."
+                            rows={1}
+                            value={prompt}
+                            onChange={(e) => {
+                                setPrompt(e.target.value);
+                                growTextarea(e.target);
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    if (!loading && prompt) handleSend();
+                                }
+                            }}
+className="no-scrollbar max-h-60 min-h-[2.25rem] flex-1 resize-none self-center overflow-y-auto bg-transparent px-2 py-2.5 text-sm leading-normal text-black outline-none placeholder:text-muted-foreground"                        />
 
-                        <div className="space-y-2">
-                            <Label htmlFor="prompt">Prompt</Label>
-                            <Textarea
-                                id="prompt"
-                                placeholder="Ask something..."
-                                rows={4}
-                                value={prompt}
-                                onChange={(e) => setPrompt(e.target.value)}
-                            />
+                        <div className="flex shrink-0 items-center gap-1.5 mr-3">
+                            <button
+                                type="button"
+                                onClick={() => setModelMenuOpen((o) => !o)}
+                                className="flex items-center gap-1 rounded-full bg-muted px-3 py-1.5 text-xs font-medium hover:bg-accent"
+                            >
+                                {modelLabel}
+                                <IconChevronUp className={`size-3.5 transition-transform ${modelMenuOpen ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleSend}
+                                disabled={loading || !prompt}
+                                aria-label="Send"
+                                className="flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-50"
+                            >
+                                <IconSend className="size-4" />
+                            </button>
                         </div>
+                    </div>
+                    </div>
+                </div>
 
-                        <div className="flex items-center justify-between">
-                            <Label htmlFor="stream">Stream response</Label>
-                            <Switch id="stream" checked={stream} onCheckedChange={setStream} />
-                        </div>
-
-                        <Button
-                            className="w-full"
-                            onClick={handleSend}
-                            disabled={loading || !prompt}
-                        >
-                            {loading ? 'Sending...' : 'Send'}
-                        </Button>
-
-                        {error && (
-                            <Alert variant="destructive">
-                                <AlertDescription>{error}</AlertDescription>
-                            </Alert>
-                        )}
-
-                        <div className="space-y-2">
-                            <Label htmlFor="output">Output</Label>
-                            <Textarea id="output" readOnly rows={8} value={output} />
-                        </div>
-
-                        <Link to="/">
-                            <Button variant="outline" className="w-full">
-                                Back to home
-                            </Button>
-                        </Link>
-                    </CardContent>
-                </Card>
             </div>
-        </div>
+            </div>
+            </SidebarInset>
+        </SidebarProvider>
     );
 }

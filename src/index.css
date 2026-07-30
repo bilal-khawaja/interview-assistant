@@ -4,6 +4,14 @@
 
 @custom-variant dark (&:is(.dark *));
 
+.no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
 @theme inline {
     --font-sans: var(--font-sans);
     --color-background: var(--background);

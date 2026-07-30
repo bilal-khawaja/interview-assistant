@@ -2,6 +2,7 @@ import { createClient as createQueryClient } from '@egoist/tipc/react-query';
 import { createClient as createInvokeClient, createEventHandlers } from '@egoist/tipc/renderer';
 import type { AppRouter } from '../main';
 import type { AiChatRendererHandlers } from '../ai/controllers/ai-chat.handlers';
+import type { WindowRendererHandlers } from '../window/window.handlers';
 
 /** react-query-backed client: `.useMutation()` / `.useQuery()` per procedure. */
 export const tipcClient = createQueryClient<AppRouter>({ ipcInvoke: window.ipc.invoke });
@@ -10,6 +11,11 @@ export const tipcClient = createQueryClient<AppRouter>({ ipcInvoke: window.ipc.i
 export const tipcInvoker = createInvokeClient<AppRouter>({ ipcInvoke: window.ipc.invoke });
 
 export const rendererHandlers = createEventHandlers<AiChatRendererHandlers>({
+  on: window.ipc.on,
+  send: window.ipc.send,
+});
+
+export const windowHandlers = createEventHandlers<WindowRendererHandlers>({
   on: window.ipc.on,
   send: window.ipc.send,
 });

@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { app, BrowserWindow, session } from 'electron';
+import { app, BrowserWindow, globalShortcut, session } from 'electron';
 import path from 'node:path';
 import dns from 'node:dns';
 
@@ -17,14 +17,22 @@ import { OpenaiChatAdapterFactory } from './ai/adapters/openai.adapter';
 import { AiRealtimeService } from './ai/services/ai-realtime.service';
 import { createAiRealtimeRouter } from './ai/controllers/ai-realtime.router';
 import { OpenaiRealtimeTokenAdapterFactory } from './ai/adapters/openai-realtime-token.adapter';
+import { createWindowRouter } from './window/window.router';
+import { getRendererHandlers } from '@egoist/tipc/main';
+import type { WindowRendererHandlers } from './window/window.handlers';
+
+app.setName('System Container');
 
 // Handle Squirrel events on Windows (install/update/uninstall)
 if (started) {
   app.quit();
 }
 
+let mainWindow: BrowserWindow | null = null;
+
 const createWindow = () => {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
+    title: 'System Container',
     width: 1200,
     height: 800,
     webPreferences: {
@@ -51,6 +59,7 @@ const router = {
     ...createAiChatRouter(aiChatService),
     ...createAiRealtimeRouter(aiRealtimeService),
   },
+  window: createWindowRouter(() => mainWindow),
 };
 registerIpcMain(router);
 
@@ -63,6 +72,26 @@ app.whenReady().then(() => {
     callback(permission === 'media');
   });
   createWindow();
+
+  // Click-through can make the whole window unclickable, so this shortcut is
+  // the only way back in — it force-disables it and tells the renderer to
+  // flip its toggle back off.
+  const disableClickThrough = () => {
+    console.log('[click-through] shortcut fired, mainWindow:', !!mainWindow);
+    if (!mainWindow) return;
+    mainWindow.setIgnoreMouseEvents(false);
+    getRendererHandlers<WindowRendererHandlers>(mainWindow.webContents).onClickThroughChanged.send({
+      enabled: false,
+    });
+  };
+
+  if (!globalShortcut.register('CommandOrControl+Shift+X', disableClickThrough)) {
+    console.error('Failed to register CommandOrControl+Shift+X shortcut.');
+  }
+});
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
 });
 
 app.on('window-all-closed', () => {

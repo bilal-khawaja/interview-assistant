@@ -7,7 +7,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { Link, useLocation } from '@tanstack/react-router';
-import { IconHome, IconRobot } from '@tabler/icons-react';
+import { IconHome, IconRobot, IconSettings, IconMicrophone } from '@tabler/icons-react';
 import type { CSSProperties } from 'react';
 
 export function AppSidebar() {
@@ -44,6 +44,30 @@ export function AppSidebar() {
                             <Link to="/ai">
                                 <IconRobot className="size-2" />
                                 Chatbot
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            asChild
+                            isActive={pathname === '/realtime'}
+                            className="rounded-lg text-[10px] font-semibold tracking-wide text-slate-600 hover:bg-[#e6e6e6] hover:text-slate-900 data-[active=true]:bg-[#eef0ee] data-[active=true]:text-slate-900"
+                        >
+                            <Link to="/realtime">
+                                <IconMicrophone className="size-2" />
+                                Realtime
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            asChild
+                            isActive={pathname === '/settings'}
+                            className="rounded-lg text-[10px] font-semibold tracking-wide text-slate-600 hover:bg-[#e6e6e6] hover:text-slate-900 data-[active=true]:bg-[#eef0ee] data-[active=true]:text-slate-900"
+                        >
+                            <Link to="/settings">
+                                <IconSettings className="size-2" />
+                                Settings
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
