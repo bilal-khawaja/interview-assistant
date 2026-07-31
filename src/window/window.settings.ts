@@ -115,55 +115,55 @@ function createUpdateWindow(releaseNotes: string) {
 }
 
 
-function createUpgradeWindow(previousVersion: string | null, currentVersion: string) {
+// function createUpgradeWindow(previousVersion: string | null, currentVersion: string) {
 
-    const upgradeWindow = new BrowserWindow({
+//     const upgradeWindow = new BrowserWindow({
 
-        width: 440,
-        height: 520,
-        frame: false,
-        transparent: true,
-        alwaysOnTop: true,
-        resizable: false,
-        webPreferences: {
-            preload: path.join(__dirname, 'preload.js'),
-            nodeIntegration: false,
-            contextIsolation: true,
-        },
-        backgroundColor: '#00000000',
-    });
+//         width: 440,
+//         height: 520,
+//         frame: false,
+//         transparent: true,
+//         alwaysOnTop: true,
+//         resizable: false,
+//         webPreferences: {
+//             preload: path.join(__dirname, 'preload.js'),
+//             nodeIntegration: false,
+//             contextIsolation: true,
+//         },
+//         backgroundColor: '#00000000',
+//     });
 
-    // Apply stealth modes
-    upgradeWindow.setContentProtection(true);
-    upgradeWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+//     // Apply stealth modes
+//     upgradeWindow.setContentProtection(true);
+//     upgradeWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
-    // Center window
-    upgradeWindow.center();
+//     // Center window
+//     upgradeWindow.center();
 
-    if (process.platform === 'win32') {
-        try {
-            upgradeWindow.setSkipTaskbar(true);
-            upgradeWindow.setAlwaysOnTop(true, 'screen-saver', 1);
-        } catch (error) {
-            console.warn('Could not apply upgrade window stealth modes:', error);
-        }
-    }
+//     if (process.platform === 'win32') {
+//         try {
+//             upgradeWindow.setSkipTaskbar(true);
+//             upgradeWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+//         } catch (error) {
+//             console.warn('Could not apply upgrade window stealth modes:', error);
+//         }
+//     }
 
-    if (process.platform === 'darwin') {
-        try {
+//     if (process.platform === 'darwin') {
+//         try {
 
-        } catch (error) {
-            console.warn('Could not hide upgrade window from Mission Control:', error);
-        }
+//         } catch (error) {
+//             console.warn('Could not hide upgrade window from Mission Control:', error);
+//         }
         
-    }
+//     }
 
-    loadDialog(upgradeWindow, 'upgrade', {
-        previousVersion: previousVersion ?? '',
-        currentVersion,
-    });
-    return upgradeWindow;
-}
+//     loadDialog(upgradeWindow, 'upgrade', {
+//         previousVersion: previousVersion ?? '',
+//         currentVersion,
+//     });
+//     return upgradeWindow;
+// }
 
 export function awaitWindowClosed(win: BrowserWindow): Promise<void> {
     return new Promise((resolve) => win.once('closed', resolve));
@@ -172,5 +172,4 @@ export function awaitWindowClosed(win: BrowserWindow): Promise<void> {
 export {
     createSplashWindow,
     createUpdateWindow,
-    createUpgradeWindow,
 };

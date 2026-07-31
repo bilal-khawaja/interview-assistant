@@ -44,7 +44,7 @@ function Settings() {
                             <div className="flex items-center gap-3">
                                 <span className="w-10 text-right text-xs text-muted-foreground">
                                     {Math.round(opacity * 100)}%
-                                </span>\
+                                </span>
                                 <input
                                     type="range"
                                     min={0.2}

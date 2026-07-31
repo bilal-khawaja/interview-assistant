@@ -22,7 +22,6 @@ import { createWindowRouter } from './window/window.router';
 import { getRendererHandlers } from '@egoist/tipc/main';
 import type { WindowRendererHandlers } from './window/window.handlers';
 import { createUpdateRouter } from './window/window.update.router';
-import { createUpgradeRouter } from './window/window.upgrade.router';
 import { createUpdateWindow } from './window/window.settings';
 
 app.setName('System Container');
@@ -67,7 +66,7 @@ const router = {
   },
   window: createWindowRouter(() => mainWindow),
   update: createUpdateRouter(() => updateWindow),
-  upgrade: createUpgradeRouter(() => upgradeWindow),
+  // upgrade: createUpgradeRouter(() => upgradeWindow),
 };
 registerIpcMain(router);
 
