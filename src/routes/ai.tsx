@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { tipcClient, rendererHandlers } from '@/lib/tipc-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -86,54 +85,49 @@ function AiChat() {
     };
 
     return (
-        <SidebarProvider style={{ '--sidebar-width': '20rem' } as CSSProperties}>
+        <SidebarProvider>
             <AppSidebar />
-            <SidebarInset>
-            <div className="min-h-screen bg-background p-4">
-
-            <div className="mx-auto w-full max-w-2xl space-y-10 py-16">
-
-                {error && (
-                    <Alert variant="destructive">
-                        <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                )}
-
-                <div className="min-h-40 whitespace-pre-wrap text-base leading-relaxed">
-                    {output}
+            <SidebarInset className="min-w-0">
+            <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4 sm:p-6">
+                <div className="w-full max-w-2xl flex flex-col items-center justify-center space-y-6 ml-auto mb-auto">
+                            {error && (
+                                <Alert variant="destructive">
+                                    <AlertDescription>{error}</AlertDescription>
+                                </Alert>
+                            )}
+                            <div className="min-h-40 whitespace-pre-wrap text-base leading-relaxed">
+                                {output}
+                            </div>
+            {!output && !loading && (
+                <div className="flex justify-center mb-6">
+                    <h1 className="pointer-events-none cursor-default select-none text-3xl font-semibold tracking-tight text-slate-950 text-center mb-2 [text-shadow:_0_0_10px_rgba(0,0,0,0.15)]">                        The floor is yours
+                    </h1>
                 </div>
+            )}
+            <div className="relative mt-6 flex justify-center w-full">
+                {modelMenuOpen && (
+                    <div  className="absolute no-scrollbar bottom-full right-4 sm:right-6 mb-2 w-36 max-h-48 overflow-y-auto rounded-xl border bg-popover p-1 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-150 z-20">                        {MODELS.map((m) => (
+                            <button
+                                key={m.value}
+                                type="button"
+                                onClick={() => {
+                                    setModel(m.value);
+                                    setModelMenuOpen(false);
+                                }}
+                                className={` relative w-full rounded-md px-2 py-1 text-left text-xs hover:bg-accent transition-colors ${
+                                    m.value === model ? 'font-semibold text-foreground' : 'text-muted-foreground'
+                                }`}
+                            >
+                                {m.label}
+                            </button>
+                        ))}
+                    </div>
 
-{!output && !loading && (
-    <div className="flex justify-center mb-6">
-        <h1 className="absolute bottom-90 pointer-events-none cursor-default select-none text-3xl font-semibold tracking-tight text-slate-950 [text-shadow:_0_0_10px_rgba(0,0,0,0.3),_0_0_20px_rgba(0,0,0,0.2),_0_0_40px_rgba(0,0,0,0.15)]">
-            The floor is yours
-        </h1>
-    </div>
-)}
-
-                <div className="relative">
-                    {modelMenuOpen && (
-                        <div className="absolute bottom-full right-0 mb-2 w-32 origin-bottom-right animate-in fade-in slide-in-from-bottom-2 rounded-xl border bg-popover p-1 shadow-lg duration-150">
-                            {MODELS.map((m) => (
-                                <button
-                                    key={m.value}
-                                    type="button"
-                                    onClick={() => {
-                                        setModel(m.value);
-                                        setModelMenuOpen(false);
-                                    }}
-                                    className={`w-full rounded-md px-2 py-1 text-left text-xs hover:bg-accent ${
-                                        m.value === model ? 'font-semibold text-foreground' : 'text-muted-foreground'
-                                    }`}
-                                >
-                                    {m.label}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                    <div className="relative mx-auto w-full max-w-xl">
-                    <div className="flex items-center gap-2 rounded-full border border-border/60 bg-[#f9faf9] p-1.5 shadow-md transition-shadow hover:shadow-lg">
+                )}
+                <div className="relative w-full max-w-[90%] sm:max-w-md md:max-w-lg lg:max-w-2xl min-w-[260px] mx-auto">
+                    <div className="flex items-center gap-1.5 rounded-full border border-border/60 bg-[#f9faf9] px-3 py-1 shadow-sm transition-shadow hover:shadow-md focus-within:ring-1 focus-within:ring-ring">
                         <textarea
+
                             ref={textareaRef}
                             id="prompt"
                             placeholder="Ask something..."
@@ -149,35 +143,33 @@ function AiChat() {
                                     if (!loading && prompt) handleSend();
                                 }
                             }}
-className="no-scrollbar max-h-60 min-h-[2.25rem] flex-1 resize-none self-center overflow-y-auto bg-transparent px-2 py-2.5 text-sm leading-normal text-black outline-none placeholder:text-muted-foreground"                        />
-
-                        <div className="flex shrink-0 items-center gap-1.5 mr-3">
+                            className="no-scrollbar flex-1 resize-none bg-transparent px-2 py-1.5 text-xs sm:text-sm leading-normal text-black outline-none placeholder:text-muted-foreground min-h-[2rem] max-h-36 sm:max-h-48 overflow-y-auto self-center"
+                        />
+                        <div className="flex shrink-0 items-center gap-1.5">
                             <button
                                 type="button"
                                 onClick={() => setModelMenuOpen((o) => !o)}
-                                className="flex items-center gap-1 rounded-full bg-muted px-3 py-1.5 text-xs font-medium hover:bg-accent"
+                                className="flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[11px] sm:text-xs font-medium transition-colors hover:bg-accent"
                             >
                                 {modelLabel}
-                                <IconChevronUp className={`size-3.5 transition-transform ${modelMenuOpen ? 'rotate-180' : ''}`} />
+                                <IconChevronUp className={`size-3 transition-transform ${modelMenuOpen ? 'rotate-180' : ''}`} />
                             </button>
-
                             <button
                                 type="button"
                                 onClick={handleSend}
                                 disabled={loading || !prompt}
                                 aria-label="Send"
-                                className="flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-50"
+                                className="flex size-6 sm:size-7 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity disabled:opacity-50"
                             >
-                                <IconSend className="size-4" />
+                                <IconSend className="size-3.5" />
                             </button>
                         </div>
                     </div>
-                    </div>
-                </div>
-
-            </div>
-            </div>
-            </SidebarInset>
+        </div>
+        </div> 
+        </div>
+        </div>
+        </SidebarInset>
         </SidebarProvider>
     );
 }

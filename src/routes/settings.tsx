@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/layout/sidebar';
@@ -16,15 +15,14 @@ function Settings() {
     const [clickThrough, setClickThrough] = useClickThroughSetting();
 
     return (
-        <SidebarProvider style={{ '--sidebar-width': '20rem' } as CSSProperties}>
+        <SidebarProvider>
             <AppSidebar />
-            <SidebarInset>
-                <div className="min-h-screen bg-background p-4">
-                    <div className="mx-auto w-full max-w-2xl space-y-4 py-16">
-                        <h1 className="text-xl font-bold">Settings</h1>
+            <SidebarInset className="min-w-0 flex-1 pl-[9rem]"> 
+                <div className="min-h-screen bg-background p-6">
+                    <div className="mx-auto w-full max-w-2xl space-y-4 py-8">
+                            <h1 className="text-xl font-bold">Settings</h1>
 
-                        <div className="flex items-center justify-between rounded-xl border border-border/60 bg-[#f9faf9] px-4 py-3 shadow-sm">
-                            <span className="text-sm text-black">Streaming response</span>
+                            <div className="flex w-full items-center justify-between gap-4 rounded-xl border border-border/60 bg-[#f9faf9] px-4 py-3 shadow-sm">                            <span className="text-sm text-black">Streaming response</span>
                                 <button
                                     type="button"
                                     onClick={() => setStream((s) => !s)}
@@ -44,6 +42,9 @@ function Settings() {
                         <div className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-[#f9faf9] px-4 py-3 shadow-sm">
                             <span className="text-sm text-black">Window opacity</span>
                             <div className="flex items-center gap-3">
+                                <span className="w-10 text-right text-xs text-muted-foreground">
+                                    {Math.round(opacity * 100)}%
+                                </span>\
                                 <input
                                     type="range"
                                     min={0.2}
@@ -53,9 +54,7 @@ function Settings() {
                                     onChange={(e) => setOpacity(Number(e.target.value))}
                                     className="w-32 accent-[#34C759]"
                                 />
-                                <span className="w-10 text-right text-xs text-muted-foreground">
-                                    {Math.round(opacity * 100)}%
-                                </span>
+
                             </div>
                         </div>
 

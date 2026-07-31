@@ -10,6 +10,7 @@ import dns from 'node:dns';
 // must be set here.
 dns.setDefaultResultOrder('ipv4first');
 import started from 'electron-squirrel-startup';
+import { updateElectronApp } from 'update-electron-app';
 import { registerIpcMain } from '@egoist/tipc/main';
 import { AiChatService } from './ai/services/ai-chat.service';
 import { createAiChatRouter } from './ai/controllers/ai-chat.router';
@@ -20,6 +21,9 @@ import { OpenaiRealtimeTokenAdapterFactory } from './ai/adapters/openai-realtime
 import { createWindowRouter } from './window/window.router';
 import { getRendererHandlers } from '@egoist/tipc/main';
 import type { WindowRendererHandlers } from './window/window.handlers';
+import { createUpdateRouter } from './window/window.update.router';
+import { createUpgradeRouter } from './window/window.upgrade.router';
+import { createUpdateWindow } from './window/window.settings';
 
 app.setName('System Container');
 
@@ -29,12 +33,14 @@ if (started) {
 }
 
 let mainWindow: BrowserWindow | null = null;
+let updateWindow: BrowserWindow | null = null;
+let upgradeWindow: BrowserWindow | null = null;
 
 const createWindow = () => {
   mainWindow = new BrowserWindow({
     title: 'System Container',
-    width: 1200,
-    height: 800,
+    frame: false,
+    skipTaskbar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -60,17 +66,27 @@ const router = {
     ...createAiRealtimeRouter(aiRealtimeService),
   },
   window: createWindowRouter(() => mainWindow),
+  update: createUpdateRouter(() => updateWindow),
+  upgrade: createUpgradeRouter(() => upgradeWindow),
 };
 registerIpcMain(router);
 
 export type AppRouter = typeof router;
 
-app.whenReady().then(() => {
+updateElectronApp({
+  notifyUser: false,
+  onNotifyUser: ({ releaseNotes }) => {
+    updateWindow = createUpdateWindow(releaseNotes ?? '');
+  },
+});
+
+app.whenReady().then(async () => {
   // Realtime voice chat needs the mic (getUserMedia) — Electron denies media
   // permission requests by default unless explicitly allowed here.
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     callback(permission === 'media');
   });
+
   createWindow();
 
   // Click-through can make the whole window unclickable, so this shortcut is
@@ -87,6 +103,25 @@ app.whenReady().then(() => {
 
   if (!globalShortcut.register('CommandOrControl+Shift+X', disableClickThrough)) {
     console.error('Failed to register CommandOrControl+Shift+X shortcut.');
+  }
+
+  // Stealth toggle: hide/show main window without closing the process.
+  const toggleMainWindow = () => {
+    if (!mainWindow) return;
+    if (mainWindow.isVisible()) {
+      mainWindow.hide();
+    } else {
+      mainWindow.show();
+    }
+  };
+
+  if (!globalShortcut.register('CommandOrControl+\\', toggleMainWindow)) {
+    console.error('Failed to register CommandOrControl+\\ shortcut.');
+  }
+
+  // Frameless window has no native close button — this is the only way to quit.
+  if (!globalShortcut.register('CommandOrControl+Q', () => app.quit())) {
+    console.error('Failed to register CommandOrControl+Q shortcut.');
   }
 });
 
