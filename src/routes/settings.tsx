@@ -4,6 +4,7 @@ import { AppSidebar } from '@/layout/sidebar';
 import { useStreamSetting } from '@/lib/use-stream-setting';
 import { useOpacitySetting } from '@/lib/use-opacity-setting';
 import { useClickThroughSetting } from '@/lib/use-click-through-setting';
+import { useWebSearchSetting } from '@/lib/use-web-search-setting';
 
 export const Route = createFileRoute('/settings')({
     component: Settings,
@@ -13,6 +14,7 @@ function Settings() {
     const [stream, setStream] = useStreamSetting();
     const [opacity, setOpacity] = useOpacitySetting();
     const [clickThrough, setClickThrough] = useClickThroughSetting();
+    const [webSearch, setWebSearch] = useWebSearchSetting();
 
     return (
         <SidebarProvider>
@@ -78,6 +80,24 @@ function Settings() {
                                 <span
                                     className={`absolute top-[2px] left-[2px] size-4 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.25)] transition-transform duration-300 ease-in-out ${
                                         clickThrough ? 'translate-x-[1.75rem]' : 'translate-x-0'
+                                    }`}
+                                />
+                            </button>
+                        </div>
+
+                        <div className="flex items-center justify-between rounded-xl border border-border/60 bg-[#f9faf9] px-4 py-3 shadow-sm">
+                            <span className="text-sm text-black">Web search</span>
+                            <button
+                                type="button"
+                                onClick={() => setWebSearch((w) => !w)}
+                                aria-pressed={webSearch}
+                                className={`relative h-5 w-12 shrink-0 rounded-full p-[2px] transition-colors duration-300 ease-in-out ${
+                                    webSearch ? 'bg-[#34C759]' : 'bg-[#E9E9EA]'
+                                }`}
+                            >
+                                <span
+                                    className={`absolute top-[2px] left-[2px] size-4 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.25)] transition-transform duration-300 ease-in-out ${
+                                        webSearch ? 'translate-x-[1.75rem]' : 'translate-x-0'
                                     }`}
                                 />
                             </button>

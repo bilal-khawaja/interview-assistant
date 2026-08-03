@@ -71,14 +71,6 @@ export function AppSidebar() {
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
-                    {/* <SidebarMenuItem>
-                        <SidebarMenuButton
-                            asChild
-                            className="rounded-lg font-sm tracking-wide text-slate-600 hover:bg-[#f4f5f4] hover:text-slate-900"
-                        >
-                            <Link to="/realtime">Realtime</Link>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem> */}
                 </SidebarMenu>
             </SidebarContent>
         </Sidebar>

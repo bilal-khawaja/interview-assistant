@@ -134,3 +134,58 @@
         @apply bg-background text-foreground font-sans;
     }
 }
+
+.inline-code {
+    background: var(--color-muted);
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.3rem;
+    font-size: 0.875em;
+}
+
+.prose-basic {
+    line-height: 1.7;
+}
+
+.prose-basic :is(h1, h2, h3) {
+    font-weight: 600;
+    margin: 1.2em 0 0.5em;
+}
+
+.prose-basic p {
+    margin: 0.75em 0;
+}
+
+.prose-basic pre {
+    padding: 1rem;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    margin: 0.75em 0;
+}
+
+.prose-basic pre [data-line] {
+    padding: 0 0.25rem;
+}
+
+.prose-basic pre [data-highlighted-line] {
+    background: color-mix(in oklch, var(--color-primary) 10%, transparent);
+}
+
+.prose-basic table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0.75em 0;
+}
+
+.prose-basic :is(th, td) {
+    padding: 0.4rem 0.6rem;
+    text-align: left;
+}
+
+.prose-basic tr:not(:last-child) {
+    border-bottom: 1px solid var(--color-muted);
+}
+
+.prose-basic ul {
+    padding-left: 1.4em;
+    margin: 0.5em 0;
+}

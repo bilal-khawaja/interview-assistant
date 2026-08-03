@@ -4,6 +4,7 @@
  */
 export type AiChatRendererHandlers = {
   onAiChunk: (data: { id: string; delta: string }) => void;
+  onAiReasoningChunk: (data: { id: string; delta: string }) => void;
   onAiDone: (data: { id: string }) => void;
   onAiError: (data: { id: string; message: string }) => void;
 };

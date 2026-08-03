@@ -59,12 +59,24 @@ const createWindow = () => {
 const aiChatService = new AiChatService(new OpenaiChatAdapterFactory());
 const aiRealtimeService = new AiRealtimeService(new OpenaiRealtimeTokenAdapterFactory());
 
+// Single source of truth for click-through state, shared between the
+// settings toggle (renderer -> tipc) and the Ctrl+Shift+X shortcut, so
+// neither can drift out of sync with the other.
+let clickThroughEnabled = false;
+const applyClickThrough = (enabled: boolean) => {
+  if (!mainWindow) return;
+  clickThroughEnabled = enabled;
+  mainWindow.setIgnoreMouseEvents(enabled, { forward: true });
+  mainWindow.setAlwaysOnTop(enabled, 'screen-saver', 1);
+  if (enabled) mainWindow.moveTop();
+};
+
 const router = {
   ai: {
     ...createAiChatRouter(aiChatService),
     ...createAiRealtimeRouter(aiRealtimeService),
   },
-  window: createWindowRouter(() => mainWindow),
+  window: createWindowRouter(() => mainWindow, applyClickThrough),
   update: createUpdateRouter(() => updateWindow),
   // upgrade: createUpgradeRouter(() => upgradeWindow),
 };
@@ -89,18 +101,17 @@ app.whenReady().then(async () => {
   createWindow();
 
   // Click-through can make the whole window unclickable, so this shortcut is
-  // the only way back in — it force-disables it and tells the renderer to
-  // flip its toggle back off.
-  const disableClickThrough = () => {
-    console.log('[click-through] shortcut fired, mainWindow:', !!mainWindow);
+  // the only way back in — it flips click-through on/off and tells the
+  // renderer to sync its toggle to match.
+  const toggleClickThrough = () => {
     if (!mainWindow) return;
-    mainWindow.setIgnoreMouseEvents(false);
+    applyClickThrough(!clickThroughEnabled);
     getRendererHandlers<WindowRendererHandlers>(mainWindow.webContents).onClickThroughChanged.send({
-      enabled: false,
+      enabled: clickThroughEnabled,
     });
   };
 
-  if (!globalShortcut.register('CommandOrControl+Shift+X', disableClickThrough)) {
+  if (!globalShortcut.register('CommandOrControl+Shift+X', toggleClickThrough)) {
     console.error('Failed to register CommandOrControl+Shift+X shortcut.');
   }
 
