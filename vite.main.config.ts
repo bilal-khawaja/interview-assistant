@@ -7,6 +7,7 @@ export default defineConfig({
             output: {
                 codeSplitting: false,
             },
+            external: ['pdf-parse', 'pdf-parse/node', 'pdfjs-dist', 'mammoth', 'xlsx'],
         },
     },
 });

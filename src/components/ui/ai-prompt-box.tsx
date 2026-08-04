@@ -1,6 +1,6 @@
 import React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { ArrowUp, Square, Globe, BrainCog, ChevronUp } from "lucide-react";
+import { ArrowUp, Square, Globe, BrainCog, ChevronUp, Paperclip, X, FileText } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 import {
@@ -10,6 +10,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Attachment,
+  AttachmentGroup,
+  AttachmentMedia,
+  AttachmentContent,
+  AttachmentTitle,
+  AttachmentDescription,
+  AttachmentActions,
+  AttachmentAction,
+  AttachmentTrigger,
+} from "@/components/ui/attachment";
 
 const styles = `
   *:focus-visible {
@@ -273,8 +284,44 @@ export interface PromptInputModelOption {
   value: string;
 }
 
+const FilePreviewImage: React.FC<{ file: File }> = ({ file }) => {
+  const [url, setUrl] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+
+  if (!url) return null;
+  return <img src={url} alt={file.name || "Pasted image"} />;
+};
+
+const ExpandedImage: React.FC<{ file: File }> = ({ file }) => {
+  const [url, setUrl] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+
+  if (!url) return null;
+  return (
+    <img
+      src={url}
+      alt={file.name || "Pasted image"}
+      className="max-h-full max-w-full rounded-lg object-contain"
+      onClick={(e) => e.stopPropagation()}
+    />
+  );
+};
+
+export const ACCEPTED_ATTACHMENT_EXTENSIONS = [".pdf", ".docx", ".xlsx", ".xls", ".txt", ".md", "image/*"];
+const ACCEPTED_ATTACHMENT_ACCEPT = ACCEPTED_ATTACHMENT_EXTENSIONS.join(",");
+
 interface PromptInputBoxProps {
-  onSend?: (message: string) => void;
+  onSend?: (message: string, files?: File[]) => void;
   isLoading?: boolean;
   placeholder?: string;
   className?: string;
@@ -311,18 +358,31 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
     reasoningEfforts = ["minimal", "low", "medium", "high"],
   } = props;
   const [input, setInput] = React.useState("");
+  const [files, setFiles] = React.useState<File[]>([]);
+  const [isDragging, setIsDragging] = React.useState(false);
+  const [expandedImage, setExpandedImage] = React.useState<File | null>(null);
   const promptBoxRef = React.useRef<HTMLDivElement>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const selectedModel = models.find((m) => m.value === model) ?? models[0];
 
+  const addFiles = (incoming: FileList | File[]) => {
+    setFiles((prev) => [...prev, ...Array.from(incoming)]);
+  };
+
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = () => {
-    if (input.trim()) {
-      onSend(input);
+    if (input.trim() || files.length > 0) {
+      onSend(input, files.length > 0 ? files : undefined);
       setInput("");
+      setFiles([]);
     }
   };
 
-  const hasContent = input.trim() !== "";
+  const hasContent = input.trim() !== "" || files.length > 0;
 
   return (
     <PromptInput
@@ -332,18 +392,120 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
       onSubmit={handleSubmit}
       className={cn(
         "w-full bg-[#1F2023] border-[#444444] shadow-[0_8px_30px_rgba(0,0,0,0.24)] transition-all duration-300 ease-in-out",
+        isDragging && "border-[#1EAEDB] border-2",
         className
       )}
       disabled={isLoading}
       ref={ref || promptBoxRef}
     >
-      <PromptInputTextarea
-        placeholder={webSearch ? "Search the web..." : reasoning ? "Think deeply..." : placeholder}
-        className="text-base"
-      />
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDragging(false);
+          if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+        }}
+        onPaste={(e) => {
+          const items = Array.from(e.clipboardData?.items ?? []);
+          const images = items
+            .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+            .map((item) => item.getAsFile())
+            .filter((file): file is File => file !== null);
+          if (images.length) addFiles(images);
+        }}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={ACCEPTED_ATTACHMENT_ACCEPT}
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files?.length) addFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
+
+        {files.length > 0 && (
+          <AttachmentGroup className="px-1 pb-2">
+            {files.map((file, index) => {
+              const isImage = file.type.startsWith("image/");
+              return (
+                <Attachment
+                  key={`${file.name}-${index}`}
+                  size="sm"
+                  orientation={isImage ? "vertical" : "horizontal"}
+                  className={cn(
+                    !isImage && "border-[#444444] bg-[#2E3033] text-[#D1D5DB]",
+                    isImage &&
+                      "!w-20 overflow-hidden border-0 bg-transparent p-0 hover:bg-transparent has-[>a,>button]:hover:bg-transparent"
+                  )}
+                >
+                  {isImage && (
+                    <AttachmentTrigger
+                      aria-label={`Expand ${file.name || "pasted image"}`}
+                      onClick={() => setExpandedImage(file)}
+                    />
+                  )}
+                  <AttachmentMedia
+                    variant={isImage ? "image" : "icon"}
+                    className={cn("bg-[#3A3A40]", isImage && "!size-20 rounded-xl bg-transparent")}
+                  >
+                    {isImage ? <FilePreviewImage file={file} /> : <FileText />}
+                  </AttachmentMedia>
+                  {!isImage && (
+                    <AttachmentContent>
+                      <AttachmentTitle>{file.name}</AttachmentTitle>
+                      <AttachmentDescription>{(file.size / 1024).toFixed(0)} KB</AttachmentDescription>
+                    </AttachmentContent>
+                  )}
+                  <AttachmentActions
+                    className={cn(
+                      isImage &&
+                        "absolute top-0 z-20 opacity-0 transition-opacity group-hover/attachment:opacity-100"
+                    )}
+                  >
+                    <AttachmentAction
+                      aria-label={`Remove ${file.name || "pasted image"}`}
+                      onClick={() => removeFile(index)}
+                      className={cn(
+                        "text-[#9CA3AF] hover:text-[#D1D5DB]",
+                        isImage && "flex h-5 w-5 bg-transparent p-0 shadow-none hover:bg-transparent"
+                      )}
+                    >
+                      <X className={cn(isImage && "h-3 w-3")} />
+                    </AttachmentAction>
+                  </AttachmentActions>
+                </Attachment>
+              );
+            })}
+          </AttachmentGroup>
+        )}
+
+        <PromptInputTextarea
+          placeholder={webSearch ? "Search the web..." : reasoning ? "Think deeply..." : placeholder}
+          className="text-base"
+        />
+      </div>
 
       <PromptInputActions className="flex items-center justify-between gap-2 p-0 pt-2">
         <div className="flex items-center gap-1">
+          <PromptInputAction tooltip="Attach files">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="h-8 w-8 rounded-full flex items-center justify-center text-[#9CA3AF] hover:text-[#D1D5DB] hover:bg-[#3A3A40] transition-colors"
+            >
+              <Paperclip className="w-4 h-4" />
+            </button>
+          </PromptInputAction>
+
+          <CustomDivider />
+
           <button
             type="button"
             onClick={() => onWebSearchChange(!webSearch)}
@@ -496,6 +658,23 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
           </PromptInputAction>
         </div>
       </PromptInputActions>
+
+      {expandedImage && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-8"
+          onClick={() => setExpandedImage(null)}
+        >
+          <button
+            type="button"
+            aria-label="Close preview"
+            onClick={() => setExpandedImage(null)}
+            className="absolute right-6 top-6 rounded-full bg-black/50 p-2 text-white hover:bg-black/70"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <ExpandedImage file={expandedImage} />
+        </div>
+      )}
     </PromptInput>
   );
 });
