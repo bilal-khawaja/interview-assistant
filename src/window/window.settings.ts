@@ -1,11 +1,11 @@
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, screen } from 'electron';
 import path from 'node:path';
 
 // Loads the shared renderer bundle with a `dialog` search param; renderer.tsx
 // reads it and mounts the matching dialog component. file:// pathname routing
 // can't target a sub-route directly, so path-based TanStack routes don't work
 // for these secondary windows.
-function loadDialog(win: BrowserWindow, dialog: 'splash' | 'update' | 'upgrade', params: Record<string, string> = {}) {
+function loadDialog(win: BrowserWindow, dialog: 'splash' | 'update' | 'upgrade' | 'pill', params: Record<string, string> = {}) {
   const search = new URLSearchParams({ dialog, ...params }).toString();
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
@@ -165,6 +165,58 @@ function createUpdateWindow(releaseNotes: string) {
 //     return upgradeWindow;
 // }
 
+const PILL_WIDTH = 560;
+const PILL_HEIGHT_COMPACT = 56;
+const PILL_TOP_OFFSET = 54;
+
+function positionPillTopCenter(win: BrowserWindow) {
+    const { workArea } = screen.getPrimaryDisplay();
+    const x = Math.round(workArea.x + (workArea.width - PILL_WIDTH) / 2);
+    win.setPosition(x, workArea.y + PILL_TOP_OFFSET);
+}
+
+function createPillWindow() {
+    const pillWindow = new BrowserWindow({
+        width: PILL_WIDTH,
+        height: PILL_HEIGHT_COMPACT,
+        frame: false,
+        transparent: true,
+        alwaysOnTop: true,
+        resizable: false,
+        skipTaskbar: true,
+        show: false,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            nodeIntegration: false,
+            contextIsolation: true,
+        },
+        backgroundColor: '#00000000',
+    });
+
+    pillWindow.setContentProtection(true);
+    pillWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+    if (process.platform === 'win32') {
+        try {
+            pillWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+        } catch (error) {
+            console.warn('Could not apply pill window stealth modes:', error);
+        }
+    }
+
+    if (process.platform === 'darwin') {
+        try {
+            pillWindow.setHiddenInMissionControl(true);
+        } catch (error) {
+            console.warn('Could not hide pill window from Mission Control:', error);
+        }
+    }
+
+    positionPillTopCenter(pillWindow);
+    loadDialog(pillWindow, 'pill');
+    return pillWindow;
+}
+
 export function awaitWindowClosed(win: BrowserWindow): Promise<void> {
     return new Promise((resolve) => win.once('closed', resolve));
 }
@@ -172,4 +224,8 @@ export function awaitWindowClosed(win: BrowserWindow): Promise<void> {
 export {
     createSplashWindow,
     createUpdateWindow,
+    createPillWindow,
+    positionPillTopCenter,
+    PILL_WIDTH,
+    PILL_HEIGHT_COMPACT,
 };

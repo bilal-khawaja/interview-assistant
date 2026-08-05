@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { tipcClient, tipcInvoker, rendererHandlers } from '@/lib/tipc-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -12,6 +12,8 @@ import { useWebSearchSetting } from '@/lib/use-web-search-setting';
 import { useReasoningSetting } from '@/lib/use-reasoning-setting';
 import { useChatTabsStore } from '@/lib/chat-tabs-store';
 import { MarkdownRenderer } from '@/components/markdown-renderer';
+import { BrowserFindBar } from '@/components/browser-find-bar';
+import { ChatFindBar } from '@/components/chat-find-bar';
 import { PromptInputBox } from '@/components/ui/ai-prompt-box';
 import { cn } from '@/lib/utils';
 import {
@@ -170,7 +172,23 @@ function TabBar() {
     );
 }
 
+function BrowserTab({ url }: { url: string }) {
+    const webviewRef = useRef<Electron.WebviewTag | null>(null);
+
+    return (
+        <div className="relative min-h-0 flex-1">
+            <webview
+                ref={webviewRef}
+                src={url}
+                style={{ display: 'flex', width: '100%', height: '100%' }}
+            />
+            <BrowserFindBar webviewRef={webviewRef} />
+        </div>
+    );
+}
+
 function ChatPane({ tabId }: { tabId: string }) {
+    const messagesRef = useRef<HTMLDivElement>(null);
     const tabs = useChatTabsStore((s) => s.tabs);
     const createTab = useChatTabsStore((s) => s.createTab);
     const setActiveTabId = useChatTabsStore((s) => s.setActiveTabId);
@@ -302,19 +320,16 @@ function ChatPane({ tabId }: { tabId: string }) {
     if (!tab) return null;
 
     if (tab.type === 'browser') {
-        return (
-            <div className="min-h-0 flex-1">
-                <webview src={tab.url} style={{ display: 'flex', width: '100%', height: '100%' }} />
-            </div>
-        );
+        return <BrowserTab url={tab.url ?? ''} />;
     }
 
     const isEmpty = tab.messages.length === 0 && !tab.streamingText && !tab.error && !activeThought;
 
     return (
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+        <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+            <ChatFindBar containerRef={messagesRef} />
             <ScrollArea className={`mt-2 flex-1 ${isEmpty ? 'flex items-center justify-center' : ''}`}>
-                <div className="p-4 sm:p-6">
+                <div ref={messagesRef} className="p-4 sm:p-6">
                     {isEmpty ? (
                         <h1 className="pointer-events-none cursor-default select-none text-3xl font-semibold tracking-tight text-slate-950 text-center [text-shadow:_0_0_10px_rgba(0,0,0,0.15)]">
                             Get started

@@ -22,7 +22,7 @@ import { createWindowRouter } from './window/window.router';
 import { getRendererHandlers } from '@egoist/tipc/main';
 import type { WindowRendererHandlers } from './window/window.handlers';
 import { createUpdateRouter } from './window/window.update.router';
-import { createUpdateWindow } from './window/window.settings';
+import { createUpdateWindow, createPillWindow, positionPillTopCenter, PILL_WIDTH } from './window/window.settings';
 
 app.setName('System Container');
 
@@ -34,6 +34,7 @@ if (started) {
 let mainWindow: BrowserWindow | null = null;
 let updateWindow: BrowserWindow | null = null;
 let upgradeWindow: BrowserWindow | null = null;
+let pillWindow: BrowserWindow | null = null;
 
 const createWindow = () => {
   mainWindow = new BrowserWindow({
@@ -84,12 +85,50 @@ const applyOpacity = (opacity: number) => {
   mainWindow.setOpacity(windowOpacity);
 };
 
+// Tracks whether the main window was actually visible right before the pill
+// hid it, so hiding the pill only restores it when that was the case (e.g.
+// not when the user had already stealth-hidden it via Ctrl+\).
+let mainWasVisibleBeforePill = false;
+
+const showPill = () => {
+  if (mainWindow?.isVisible()) {
+    mainWasVisibleBeforePill = true;
+    mainWindow.hide();
+  }
+  if (!pillWindow || pillWindow.isDestroyed()) {
+    pillWindow = createPillWindow();
+  }
+  positionPillTopCenter(pillWindow);
+  pillWindow.show();
+};
+
+const hidePill = () => {
+  pillWindow?.hide();
+  if (mainWasVisibleBeforePill) {
+    mainWasVisibleBeforePill = false;
+    mainWindow?.show();
+  }
+};
+
+const togglePill = () => {
+  if (pillWindow && !pillWindow.isDestroyed() && pillWindow.isVisible()) {
+    hidePill();
+  } else {
+    showPill();
+  }
+};
+
+const resizePill = (height: number) => {
+  if (!pillWindow || pillWindow.isDestroyed()) return;
+  pillWindow.setSize(PILL_WIDTH, Math.round(height));
+};
+
 const router = {
   ai: {
     ...createAiChatRouter(aiChatService),
     ...createAiRealtimeRouter(aiRealtimeService),
   },
-  window: createWindowRouter(applyClickThrough, applyOpacity),
+  window: createWindowRouter(applyClickThrough, applyOpacity, resizePill, hidePill),
   update: createUpdateRouter(() => updateWindow),
   // upgrade: createUpgradeRouter(() => upgradeWindow),
 };
@@ -112,6 +151,24 @@ app.whenReady().then(async () => {
   });
 
   createWindow();
+
+  // <webview> guest pages run in their own webContents/process, so keydown
+  // inside them never reaches the host renderer's window listener. Catch the
+  // find-in-page shortcut here and forward it to the host window, tagged with
+  // the guest's webContents id so only the matching pane's find bar opens.
+  app.on('web-contents-created', (_event, contents) => {
+    console.log('[find-debug] web-contents-created type=', contents.getType());
+    if (contents.getType() !== 'webview') return;
+    contents.on('before-input-event', (_inputEvent, input) => {
+      console.log('[find-debug] before-input-event', input.type, input.key, input.control, input.meta);
+      if (input.type !== 'keyDown') return;
+      if (!(input.control || input.meta) || input.key.toLowerCase() !== 'f') return;
+      if (!mainWindow) return;
+      getRendererHandlers<WindowRendererHandlers>(mainWindow.webContents).onBrowserFindShortcut.send({
+        webContentsId: contents.id,
+      });
+    });
+  });
 
   // Click-through can make the whole window unclickable, so this shortcut is
   // the only way back in — it flips click-through on/off and tells the
@@ -142,6 +199,11 @@ app.whenReady().then(async () => {
 
   if (!globalShortcut.register('CommandOrControl+D', () => nudgeOpacity(-OPACITY_STEP))) {
     console.error('Failed to register CommandOrControl+D shortcut.');
+  }
+
+  // Floating pill toolbar — not shown at launch, only summoned on demand.
+  if (!globalShortcut.register('CommandOrControl+T', togglePill)) {
+    console.error('Failed to register CommandOrControl+T shortcut.');
   }
 
   // Stealth toggle: hide/show main window without closing the process.

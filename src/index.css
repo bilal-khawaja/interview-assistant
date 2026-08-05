@@ -12,6 +12,13 @@
     display: none;
 }
 
+::highlight(find-match) {
+    background-color: rgba(250, 204, 21, 0.5);
+}
+::highlight(find-match-active) {
+    background-color: rgba(249, 115, 22, 0.8);
+}
+
 @theme inline {
     --font-sans: var(--font-sans);
     --color-background: var(--background);
