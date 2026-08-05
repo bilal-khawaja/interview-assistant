@@ -2,20 +2,23 @@ import {
     Sidebar,
     SidebarContent,
     SidebarHeader,
+    SidebarInset,
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    SidebarRail,
+    useSidebar,
 } from '@/components/ui/sidebar';
 import { Link, useLocation } from '@tanstack/react-router';
 import { IconHome, IconRobot, IconSettings, IconMicrophone } from '@tabler/icons-react';
-import type { CSSProperties } from 'react';
+import { cn } from '@/lib/utils';
+import type { ComponentProps } from 'react';
 
 export function AppSidebar() {
     const { pathname } = useLocation();
 
     return (
         <Sidebar
-            style={{ '--sidebar-width': '18rem' } as CSSProperties}
             className="[&_[data-sidebar=sidebar]]:m-0 [&_[data-sidebar=sidebar]]:rounded-l-none [&_[data-sidebar=sidebar]]:rounded-r-3xl [&_[data-sidebar=sidebar]]:border-none [&_[data-sidebar=sidebar]]:bg-[#f9faf9]"
         >
             <SidebarHeader className="px-4 py-6 text-xs font-medium tracking-wide text-slate-600 hover:text-slate-900">
@@ -73,6 +76,19 @@ export function AppSidebar() {
                     </SidebarMenuItem>
                 </SidebarMenu>
             </SidebarContent>
+            <SidebarRail />
         </Sidebar>
+    );
+}
+
+export function AppSidebarInset({ className, ...props }: ComponentProps<typeof SidebarInset>) {
+    const { state, isMobile } = useSidebar();
+    const gapped = !isMobile && state === 'expanded';
+
+    return (
+        <SidebarInset
+            className={cn('w-full transition-[margin] duration-200 ease-linear', gapped && 'md:ml-36', className)}
+            {...props}
+        />
     );
 }

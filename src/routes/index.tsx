@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/layout/sidebar';
+import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { AppSidebar, AppSidebarInset } from '@/layout/sidebar';
 import type { CSSProperties } from 'react';
 
 export const Route = createFileRoute('/')({
@@ -10,10 +10,11 @@ export const Route = createFileRoute('/')({
 
 function App() {
     return (
-        <SidebarProvider style={{ '--sidebar-width': '20rem' } as CSSProperties}>
+        <SidebarProvider style={{ '--sidebar-width': '18rem' } as CSSProperties}>
             <AppSidebar />
-            <SidebarInset>
-                <div className="flex flex-1 flex-col items-start justify-start pl-45 gap-4 bg-background px-10 pt-30 text-left">
+            <AppSidebarInset>
+                <SidebarTrigger className="m-2" />
+                <div className="flex flex-1 flex-col items-start justify-start gap-4 bg-background px-10 pt-30 text-left">
                     <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
                         Welcome to Interview-Assistant
                     </h1>
@@ -28,7 +29,7 @@ function App() {
                         </Button>
                     </Link>
                 </div>
-            </SidebarInset>
+            </AppSidebarInset>
         </SidebarProvider>
     );
 }

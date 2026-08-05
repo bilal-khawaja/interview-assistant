@@ -21,6 +21,7 @@ import {
   AttachmentAction,
   AttachmentTrigger,
 } from "@/components/ui/attachment";
+import { Spinner } from "@/components/ui/spinner";
 
 const styles = `
   *:focus-visible {
@@ -293,7 +294,7 @@ const FilePreviewImage: React.FC<{ file: File }> = ({ file }) => {
     return () => URL.revokeObjectURL(objectUrl);
   }, [file]);
 
-  if (!url) return null;
+  if (!url) return <Spinner className="size-5 text-[#9CA3AF]" />;
   return <img src={url} alt={file.name || "Pasted image"} />;
 };
 
@@ -306,7 +307,7 @@ const ExpandedImage: React.FC<{ file: File }> = ({ file }) => {
     return () => URL.revokeObjectURL(objectUrl);
   }, [file]);
 
-  if (!url) return null;
+  if (!url) return <Spinner className="size-8 text-[#9CA3AF]" />;
   return (
     <img
       src={url}
@@ -431,7 +432,7 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
         />
 
         {files.length > 0 && (
-          <AttachmentGroup className="px-1 pb-2">
+          <AttachmentGroup className="items-center px-1 pb-2">
             {files.map((file, index) => {
               const isImage = file.type.startsWith("image/");
               return (
@@ -440,9 +441,10 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
                   size="sm"
                   orientation={isImage ? "vertical" : "horizontal"}
                   className={cn(
-                    !isImage && "border-[#444444] bg-[#2E3033] text-[#D1D5DB]",
+                    !isImage &&
+                      "border-[#444444] bg-[#2E3033] text-[#D1D5DB] has-data-[slot=attachment-content]:py-1",
                     isImage &&
-                      "!w-20 overflow-hidden border-0 bg-transparent p-0 hover:bg-transparent has-[>a,>button]:hover:bg-transparent"
+                      "!w-20 overflow-hidden border-0 bg-transparent p-0 hover:bg-transparent has-[>a,>button]:hover:bg-transparent py-1"
                   )}
                 >
                   {isImage && (

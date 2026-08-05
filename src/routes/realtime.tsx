@@ -16,6 +16,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export const Route = createFileRoute('/realtime')({
     component: RealtimePage,
@@ -98,8 +99,8 @@ function RealtimePage() {
         .join('\n');
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-background p-4">
-            <div className="mx-auto w-full max-w-2xl space-y-6">
+        <ScrollArea className="h-screen bg-background">
+            <div className="mx-auto flex min-h-full w-full max-w-2xl items-center justify-center space-y-6 p-4">
                 <Card>
                     <CardHeader>
                         <CardTitle>🎙️ Realtime Voice Chat</CardTitle>
@@ -211,6 +212,6 @@ function RealtimePage() {
                     </CardContent>
                 </Card>
             </div>
-        </div>
+        </ScrollArea>
     );
 }

@@ -4,6 +4,7 @@ import type { ChatMessage } from '@/types/chat-message.model';
 
 export interface ChatTab {
   id: string;
+  type: 'chat' | 'browser';
   title: string;
   messages: ChatMessage[];
   model: string;
@@ -12,14 +13,18 @@ export interface ChatTab {
   isStreaming: boolean;
   error: string | null;
   createdAt: number;
+  url?: string;
 }
 
 interface ChatTabsState {
   tabs: ChatTab[];
   activeTabId: string | null;
+  pinnedTabId: string | null;
   createTab: (model: string) => string;
+  createBrowserTab: (url?: string) => string;
   closeTab: (tabId: string) => void;
   setActiveTabId: (tabId: string) => void;
+  setPinnedTabId: (tabId: string | null) => void;
   appendUserMessage: (tabId: string, content: string) => void;
   appendStreamChunk: (tabId: string, type: 'text' | 'reasoning', delta: string) => void;
   finalizeStream: (tabId: string) => void;
@@ -35,6 +40,7 @@ const DEFAULT_TITLE = 'New chat';
 function newTab(model: string): ChatTab {
   return {
     id: crypto.randomUUID(),
+    type: 'chat',
     title: DEFAULT_TITLE,
     messages: [],
     model,
@@ -43,6 +49,22 @@ function newTab(model: string): ChatTab {
     isStreaming: false,
     error: null,
     createdAt: Date.now(),
+  };
+}
+
+function newBrowserTab(url: string): ChatTab {
+  return {
+    id: crypto.randomUUID(),
+    type: 'browser',
+    title: 'Browser',
+    messages: [],
+    model: '',
+    streamingText: '',
+    streamingReasoning: '',
+    isStreaming: false,
+    error: null,
+    createdAt: Date.now(),
+    url,
   };
 }
 
@@ -81,9 +103,16 @@ export const useChatTabsStore = create<ChatTabsState>()(
     (set, get) => ({
       tabs: [],
       activeTabId: null,
+      pinnedTabId: null,
 
       createTab: (model) => {
         const tab = newTab(model);
+        set((state) => ({ tabs: [...state.tabs, tab], activeTabId: tab.id }));
+        return tab.id;
+      },
+
+      createBrowserTab: (url) => {
+        const tab = newBrowserTab(url || 'https://www.google.com');
         set((state) => ({ tabs: [...state.tabs, tab], activeTabId: tab.id }));
         return tab.id;
       },
@@ -93,11 +122,14 @@ export const useChatTabsStore = create<ChatTabsState>()(
           const tabs = state.tabs.filter((t) => t.id !== tabId);
           const activeTabId =
             state.activeTabId === tabId ? (tabs[tabs.length - 1]?.id ?? null) : state.activeTabId;
-          return { tabs, activeTabId };
+          const pinnedTabId = state.pinnedTabId === tabId ? null : state.pinnedTabId;
+          return { tabs, activeTabId, pinnedTabId };
         });
       },
 
       setActiveTabId: (tabId) => set({ activeTabId: tabId }),
+
+      setPinnedTabId: (tabId) => set({ pinnedTabId: tabId }),
 
       appendUserMessage: (tabId, content) => {
         set((state) => ({

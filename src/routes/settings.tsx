@@ -1,6 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/layout/sidebar';
+import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import type { CSSProperties } from 'react';
+import { AppSidebar, AppSidebarInset } from '@/layout/sidebar';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useStreamSetting } from '@/lib/use-stream-setting';
 import { useOpacitySetting } from '@/lib/use-opacity-setting';
 import { useClickThroughSetting } from '@/lib/use-click-through-setting';
@@ -17,11 +19,12 @@ function Settings() {
     const [webSearch, setWebSearch] = useWebSearchSetting();
 
     return (
-        <SidebarProvider>
+        <SidebarProvider style={{ '--sidebar-width': '18rem' } as CSSProperties}>
             <AppSidebar />
-            <SidebarInset className="min-w-0 flex-1 pl-[9rem]"> 
-                <div className="min-h-screen bg-background p-6">
-                    <div className="mx-auto w-full max-w-2xl space-y-4 py-8">
+            <AppSidebarInset className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
+                <SidebarTrigger className="m-2 shrink-0" />
+                <ScrollArea className="min-h-0 flex-1 bg-background">
+                    <div className="mx-auto w-full max-w-2xl space-y-4 p-6 py-8">
                             <h1 className="text-xl font-bold">Settings</h1>
 
                             <div className="flex w-full items-center justify-between gap-4 rounded-xl border border-border/60 bg-[#f9faf9] px-4 py-3 shadow-sm">                            <span className="text-sm text-black">Streaming response</span>
@@ -103,8 +106,8 @@ function Settings() {
                             </button>
                         </div>
                     </div>
-                </div>
-            </SidebarInset>
+                </ScrollArea>
+            </AppSidebarInset>
         </SidebarProvider>
     );
 }

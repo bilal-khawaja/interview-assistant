@@ -44,6 +44,7 @@ const createWindow = () => {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      webviewTag: true,
     },
   });
 
@@ -71,12 +72,24 @@ const applyClickThrough = (enabled: boolean) => {
   if (enabled) mainWindow.moveTop();
 };
 
+// Single source of truth for opacity, shared between the settings slider
+// (renderer -> tipc) and the Ctrl+I/Ctrl+D shortcuts.
+const OPACITY_STEP = 0.05;
+const OPACITY_MIN = 0.2;
+const OPACITY_MAX = 1;
+let windowOpacity = 1;
+const applyOpacity = (opacity: number) => {
+  if (!mainWindow) return;
+  windowOpacity = Math.min(OPACITY_MAX, Math.max(OPACITY_MIN, opacity));
+  mainWindow.setOpacity(windowOpacity);
+};
+
 const router = {
   ai: {
     ...createAiChatRouter(aiChatService),
     ...createAiRealtimeRouter(aiRealtimeService),
   },
-  window: createWindowRouter(() => mainWindow, applyClickThrough),
+  window: createWindowRouter(applyClickThrough, applyOpacity),
   update: createUpdateRouter(() => updateWindow),
   // upgrade: createUpgradeRouter(() => upgradeWindow),
 };
@@ -113,6 +126,22 @@ app.whenReady().then(async () => {
 
   if (!globalShortcut.register('CommandOrControl+Shift+X', toggleClickThrough)) {
     console.error('Failed to register CommandOrControl+Shift+X shortcut.');
+  }
+
+  const nudgeOpacity = (delta: number) => {
+    if (!mainWindow) return;
+    applyOpacity(windowOpacity + delta);
+    getRendererHandlers<WindowRendererHandlers>(mainWindow.webContents).onOpacityChanged.send({
+      opacity: windowOpacity,
+    });
+  };
+
+  if (!globalShortcut.register('CommandOrControl+I', () => nudgeOpacity(OPACITY_STEP))) {
+    console.error('Failed to register CommandOrControl+I shortcut.');
+  }
+
+  if (!globalShortcut.register('CommandOrControl+D', () => nudgeOpacity(-OPACITY_STEP))) {
+    console.error('Failed to register CommandOrControl+D shortcut.');
   }
 
   // Stealth toggle: hide/show main window without closing the process.
