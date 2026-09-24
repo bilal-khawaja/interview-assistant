@@ -1,0 +1,67 @@
+[project]
+name = "interview-assistant"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Bilal", email = "khawajab302@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "authlib>=1.8.0",
+    "bcrypt==4.0.1",
+    "fastapi[standard]>=0.141.1",
+    "itsdangerous>=2.2.0",
+    "python-jose[cryptography]>=3.5.0",
+    "passlib>=1.7.4",
+    "sqlalchemy>=2.0.52",
+    "sqlmodel>=0.0.42",
+    "starlette>=1.6.0",
+    "alembic>=1.19.2",
+    "asyncpg>=0.30.0",
+    "pydantic-ai>=2.41.0",
+    "aio-pika>=10.0.1",
+    "kagglehub>=1.0.2",
+    "pandas>=3.0.5",
+    "deepgram-sdk>=7.10.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.10,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.6",
+]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 80
+
+[tool.ruff.lint]
+select = [
+    "A",
+    "B",
+    "D",
+    "E4",
+    "E7",
+    "E9",
+    "E501",
+    "F",
+    "I",
+    "N",
+    "UP",
+]
+ignore = [
+    "D203",
+    "D213",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+indent-style = "space"
+line-ending = "auto"
+quote-style = "double"
