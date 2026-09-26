@@ -6,19 +6,21 @@ from dotenv import load_dotenv
 from deepgram import AsyncDeepgramClient
 from deepgram.core.events import EventType
 
-load_dotenv() 
+load_dotenv()
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 AUDIO_FILE_PATH = PACKAGE_ROOT / "dataset" / "ES2002a.Mix-Headset.wav"
 
+
 async def run_deepgram_stream_test(
     audio_file_path: str,
     api_key: Optional[str] = None,
-    chunk_size: int = 1024 * 8,
-    chunk_delay: float = 0.04
+    chunk_size: int = 3200,
+    chunk_delay: float = 0.1
 ) -> bool:
 
     api_key = api_key or os.getenv("DEEPGRAM_API_KEY")
+
     if not api_key:
         raise ValueError("DEEPGRAM_API_KEY is not set.")
 
@@ -26,13 +28,16 @@ async def run_deepgram_stream_test(
         raise FileNotFoundError(f"Audio file not found: {audio_file_path}")
 
     print(f"Pre-loading {audio_file_path} into memory...")
+
     with open(audio_file_path, "rb") as audio:
-        audio.read(44)  # Skip the 44-byte WAV header cleanly
+        audio.read(44)  # skip WAV header
         audio_bytes = audio.read()
 
-    # Pre-slice chunks into a list to prevent microsecond loop calculations
-    audio_chunks = [audio_bytes[i:i + chunk_size] for i in range(0, len(audio_bytes),
-                                                                  chunk_size) if audio_bytes[i:i + chunk_size]]
+    audio_chunks = [
+        audio_bytes[i:i + chunk_size]
+        for i in range(0, len(audio_bytes), chunk_size)
+        if audio_bytes[i:i + chunk_size]
+    ]
 
     client = AsyncDeepgramClient(api_key=api_key)
 
@@ -51,10 +56,17 @@ async def run_deepgram_stream_test(
                 try:
                     if not hasattr(result, "channel") or not result.channel:
                         return
+
                     alternatives = result.channel.alternatives
-                    sentence = alternatives.transcript
+
+                    if not alternatives:
+                        return
+
+                    sentence = alternatives[0].transcript
+
                     if sentence:
                         print(f"\n[Transcript]: {sentence}")
+
                 except Exception as e:
                     print(f"\nParsing Error: {e}")
 
@@ -63,18 +75,23 @@ async def run_deepgram_stream_test(
 
             dg_connection.on(EventType.MESSAGE, on_message)
             dg_connection.on(EventType.ERROR, on_error)
-            
-            # start listener
-            await dg_connection.start_listening()
 
-            # Stream audio chunks to Deepgram 
+            # establishing the listener
+            listen_task = asyncio.create_task(dg_connection.start_listening())
+
             print("Streaming audio chunks instantly...")
+
             for chunk in audio_chunks:
                 await dg_connection.send_media(chunk)
                 await asyncio.sleep(chunk_delay)
 
-            
-            await dg_connection.finish()
+            await dg_connection.send_finalize()
+
+            try:
+                await listen_task
+            except Exception as e:
+                print(f"\nListener task ended with: {e}")
+
             print("\nStreaming finished successfully.")
             return True
 
