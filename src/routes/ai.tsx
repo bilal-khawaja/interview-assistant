@@ -10,6 +10,7 @@ import { AppSidebar, AppSidebarInset } from '@/layout/sidebar';
 import { useStreamSetting } from '@/lib/use-stream-setting';
 import { useWebSearchSetting } from '@/lib/use-web-search-setting';
 import { useReasoningSetting } from '@/lib/use-reasoning-setting';
+import { MODELS } from '@/lib/models';
 import { useChatTabsStore } from '@/lib/chat-tabs-store';
 import { MarkdownRenderer } from '@/components/markdown-renderer';
 import { BrowserFindBar } from '@/components/browser-find-bar';
@@ -37,19 +38,6 @@ export const Route = createFileRoute('/ai')({
 });
 
 const REASONING_EFFORTS: readonly ReasoningEffort[] = ['minimal', 'low', 'medium', 'high'];
-
-const MODELS = [
-    { label: 'GPT-4.1 Nano', value: 'gpt-4.1-nano', webSearch: false, reasoning: false },
-    { label: 'GPT-5.2', value: 'gpt-5.2', webSearch: true, reasoning: true },
-    { label: 'GPT-5.2 Pro', value: 'gpt-5.2-pro', webSearch: true, reasoning: true },
-    { label: 'GPT-5.1', value: 'gpt-5.1', webSearch: true, reasoning: true },
-    { label: 'GPT-5', value: 'gpt-5', webSearch: true, reasoning: true },
-    { label: 'GPT-5 Mini', value: 'gpt-5-mini', webSearch: true, reasoning: true },
-    { label: 'GPT-4.1', value: 'gpt-4.1', webSearch: true, reasoning: true },
-    { label: 'GPT-4.1 Mini', value: 'gpt-4.1-mini', webSearch: true, reasoning: false },
-    { label: 'GPT-4o', value: 'gpt-4o', webSearch: false, reasoning: true },
-    { label: 'GPT-4o Mini', value: 'gpt-4o-mini', webSearch: false, reasoning: false },
-] as const;
 
 function TabBar() {
     const tabs = useChatTabsStore((s) => s.tabs);
@@ -331,7 +319,7 @@ function ChatPane({ tabId }: { tabId: string }) {
             <ScrollArea className={`mt-2 flex-1 ${isEmpty ? 'flex items-center justify-center' : ''}`}>
                 <div ref={messagesRef} className="p-4 sm:p-6">
                     {isEmpty ? (
-                        <h1 className="pointer-events-none cursor-default select-none text-3xl font-semibold tracking-tight text-slate-950 text-center [text-shadow:_0_0_10px_rgba(0,0,0,0.15)]">
+                        <h1 className="pointer-events-none cursor-default select-none text-3xl font-semibold tracking-tight text-foreground text-center [text-shadow:_0_0_10px_rgba(0,0,0,0.15)]">
                             Get started
                         </h1>
                     ) : (
@@ -343,7 +331,7 @@ function ChatPane({ tabId }: { tabId: string }) {
                                             {message.content}
                                         </span>
                                     ) : (
-                                        <div className="text-sm leading-normal text-slate-800 break-words">
+                                        <div className="text-sm leading-normal text-foreground break-words">
                                             <MarkdownRenderer content={message.content} isStreaming={false} />
                                         </div>
                                     )}
@@ -375,7 +363,7 @@ function ChatPane({ tabId }: { tabId: string }) {
                                 </Alert>
                             )}
                             {tab.streamingText && (
-                                <div className="min-h-40 text-sm leading-normal text-slate-800 break-words">
+                                <div className="min-h-40 text-sm leading-normal text-foreground break-words">
                                     <MarkdownRenderer content={tab.streamingText} isStreaming={tab.isStreaming} />
                                 </div>
                             )}

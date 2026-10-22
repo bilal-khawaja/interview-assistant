@@ -109,3 +109,6 @@ dist/
 
 # TanStack Router generated route tree
 routeTree.gen.ts
+
+# Claude Code spool
+spool/
