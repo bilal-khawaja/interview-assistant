@@ -33,6 +33,8 @@ interface ChatTabsState {
   setStreaming: (tabId: string, isStreaming: boolean) => void;
   updateTabTitle: (tabId: string, title: string) => void;
   setModel: (tabId: string, model: string) => void;
+  /** Removes the user message at `index` together with the assistant reply that follows it. */
+  deleteExchange: (tabId: string, index: number) => void;
 }
 
 const DEFAULT_TITLE = 'New chat';
@@ -135,7 +137,7 @@ export const useChatTabsStore = create<ChatTabsState>()(
         set((state) => ({
           tabs: state.tabs.map((t) =>
             t.id === tabId
-              ? { ...t, messages: [...t.messages, { role: 'user', content }], error: null }
+              ? { ...t, messages: [...t.messages, { role: 'user', content, sentAt: Date.now() }], error: null }
               : t
           ),
         }));
@@ -160,7 +162,7 @@ export const useChatTabsStore = create<ChatTabsState>()(
               ? {
                   ...t,
                   messages: t.streamingText
-                    ? [...t.messages, { role: 'assistant' as const, content: t.streamingText }]
+                    ? [...t.messages, { role: 'assistant' as const, content: t.streamingText, sentAt: Date.now() }]
                     : t.messages,
                   streamingText: '',
                   streamingReasoning: '',
@@ -179,7 +181,7 @@ export const useChatTabsStore = create<ChatTabsState>()(
             t.id === tabId
               ? {
                   ...t,
-                  messages: [...t.messages, { role: 'assistant' as const, content: text }],
+                  messages: [...t.messages, { role: 'assistant' as const, content: text, sentAt: Date.now() }],
                   streamingReasoning: reasoning ?? '',
                   isStreaming: false,
                 }
@@ -208,6 +210,17 @@ export const useChatTabsStore = create<ChatTabsState>()(
       updateTabTitle: (tabId, title) => {
         set((state) => ({
           tabs: state.tabs.map((t) => (t.id === tabId ? { ...t, title } : t)),
+        }));
+      },
+
+      deleteExchange: (tabId, index) => {
+        set((state) => ({
+          tabs: state.tabs.map((t) => {
+            if (t.id !== tabId) return t;
+            const reply = t.messages[index + 1];
+            const count = reply?.role === 'assistant' ? 2 : 1;
+            return { ...t, messages: t.messages.filter((_, i) => i < index || i >= index + count) };
+          }),
         }));
       },
 

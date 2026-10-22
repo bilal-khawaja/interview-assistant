@@ -12,7 +12,6 @@ import {
     SidebarMenuSub,
     SidebarMenuSubButton,
     SidebarMenuSubItem,
-    SidebarRail,
     useSidebar,
 } from '@/components/ui/sidebar';
 import { Link, useLocation } from '@tanstack/react-router';
@@ -115,7 +114,7 @@ export function AppSidebar() {
 
     return (
         <Sidebar
-            className="[&_[data-sidebar=sidebar]]:m-0 [&_[data-sidebar=sidebar]]:rounded-l-none [&_[data-sidebar=sidebar]]:rounded-r-3xl [&_[data-sidebar=sidebar]]:border-none [&_[data-sidebar=sidebar]]:bg-sidebar"
+            className="[&_[data-sidebar=sidebar]]:m-0 [&_[data-sidebar=sidebar]]:rounded-none [&_[data-sidebar=sidebar]]:border-none [&_[data-sidebar=sidebar]]:bg-sidebar"
         >
             <SidebarHeader className="px-4 py-6 text-xs font-medium tracking-wide text-sidebar-foreground/70 hover:text-sidebar-accent-foreground">
                 Interview-Assistant
@@ -176,7 +175,6 @@ export function AppSidebar() {
                     </SidebarMenu>
                 )}
             </SidebarContent>
-            <SidebarRail />
         </Sidebar>
     );
 }

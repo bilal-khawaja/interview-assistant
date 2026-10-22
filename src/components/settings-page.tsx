@@ -3,10 +3,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Children } from 'react';
+import { cn } from '@/lib/utils';
 
-export function SettingsPage({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+export function SettingsPage({
+    title,
+    description,
+    wide,
+    children,
+}: {
+    title: string;
+    description: string;
+    wide?: boolean;
+    children: ReactNode;
+}) {
     return (
-        <div className="mx-auto w-full max-w-2xl space-y-4 p-6 py-8">
+        <div className={cn('mx-auto w-full space-y-4 p-6 py-8', wide ? 'max-w-6xl' : 'max-w-2xl')}>
             <div className="space-y-1">
                 <h1 className="text-xl font-bold">{title}</h1>
                 <p className="text-sm text-muted-foreground">{description}</p>

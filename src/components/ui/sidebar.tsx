@@ -270,7 +270,7 @@ Sidebar.displayName = "Sidebar"
 const SidebarTrigger = React.forwardRef<
   React.ElementRef<typeof Button>,
   React.ComponentProps<typeof Button>
->(({ className, onClick, ...props }, ref) => {
+>(({ className, onClick, style, ...props }, ref) => {
   const { toggleSidebar } = useSidebar()
 
   return (
@@ -280,6 +280,9 @@ const SidebarTrigger = React.forwardRef<
       variant="ghost"
       size="icon"
       className={cn("h-7 w-7", className)}
+      // The root layout overlays a window-drag strip across the top; opt out so
+      // the trigger stays clickable underneath it.
+      style={{ WebkitAppRegion: "no-drag", ...style } as React.CSSProperties}
       onClick={(event) => {
         onClick?.(event)
         toggleSidebar()

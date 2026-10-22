@@ -3,11 +3,14 @@ import {
     IconArrowLeft,
     IconBrain,
     IconBrush,
+    IconFileText,
+    IconHistory,
     IconMessage,
     IconMessageCode,
     IconMicrophone,
     IconPlug,
     IconScissors,
+    IconUserShield,
     IconVectorTriangle,
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
@@ -48,6 +51,15 @@ export const SETTINGS_NAV: SettingsNavGroup[] = [
             { label: 'UI Preferences', to: '/settings/customization/ui', icon: IconAdjustments },
             { label: 'Chat', to: '/settings/customization/chat', icon: IconMessage },
             { label: 'System Prompt', to: '/settings/customization/system-prompt', icon: IconMessageCode },
+        ],
+    },
+    {
+        label: 'Admin',
+        icon: IconUserShield,
+        collapsible: true,
+        items: [
+            { label: 'Chat History', to: '/settings/admin/chat-history', icon: IconHistory },
+            { label: 'Default System Prompt', to: '/settings/admin/default-system-prompt', icon: IconFileText },
         ],
     },
 ];
