@@ -1,0 +1,536 @@
+[
+  {
+    "text": "At some point, you have to believe something. We've reinvented computing as we know it.",
+    "startMs": 0,
+    "endMs": 3680,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "What is the vision for what you see coming next? We asked ourselves",
+    "startMs": 3680,
+    "endMs": 6790,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "if it can do this, how far can it go?",
+    "startMs": 6790,
+    "endMs": 8950,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "How do we get from the robots that we have now to",
+    "startMs": 8950,
+    "endMs": 12270,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "future world that you see? Clearly, everything that moves will be robotic someday.",
+    "startMs": 12270,
+    "endMs": 16160,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "It will be soon. We invested tens of billions of dollars before it really happened.",
+    "startMs": 16160,
+    "endMs": 21010,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "No. That's very good. You did some research. But the big breakthrough, I would say,",
+    "startMs": 21010,
+    "endMs": 25320,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "is when we",
+    "startMs": 25320,
+    "endMs": 27630,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "That's Jensen Huang. And whether you know it or",
+    "startMs": 27630,
+    "endMs": 32600,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "not, his decisions are shaping your future. His",
+    "startMs": 32600,
+    "endMs": 35620,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "CEO of NVIDIA, the company that skyrocketed over the past few years.",
+    "startMs": 35620,
+    "endMs": 39120,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "To become one of the most valuable companies in the world because they led a fundamental shift",
+    "startMs": 39120,
+    "endMs": 43850,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "in how computers work",
+    "startMs": 43850,
+    "endMs": 45640,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "unleashing this current explosion of what's possible with",
+    "startMs": 45640,
+    "endMs": 48660,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "technology. NVIDIA's done it again. We found ourselves being one of the most important technology",
+    "startMs": 48660,
+    "endMs": 53630,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "companies in the world and potentially ever. A huge amount of the most futuristic tech that you're hearing",
+    "startMs": 53630,
+    "endMs": 58360,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "in AI and robotics and gaming and self driving cars and breakthrough medical research",
+    "startMs": 58360,
+    "endMs": 62670,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "relies on new chips and software designed by him and his company.",
+    "startMs": 62670,
+    "endMs": 67030,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "During the dozens of background interviews that I did to prepare for this, what struck me most was",
+    "startMs": 67030,
+    "endMs": 71190,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "how much Jensen Huang has already influenced",
+    "startMs": 71190,
+    "endMs": 73630,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "all of our lives over the last thirty years and how many said",
+    "startMs": 73630,
+    "endMs": 76830,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "just the beginning of something even bigger?",
+    "startMs": 76830,
+    "endMs": 79830,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "We all need to know what he's building and why.",
+    "startMs": 79830,
+    "endMs": 82850,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "And most importantly, what he's trying to build next. Welcome",
+    "startMs": 82850,
+    "endMs": 87160,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "to huge conversations.",
+    "startMs": 87160,
+    "endMs": 88710,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "Thank you so much for your help. I'm so happy to do it.",
+    "startMs": 94060,
+    "endMs": 98590,
+    "speakerKey": "spk_2"
+  },
+  {
+    "text": "Before we dive in, I wanted to tell you",
+    "startMs": 98890,
+    "endMs": 101720,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "how this interview is gonna be a little bit different than other interviews I've seen you doing something.",
+    "startMs": 101720,
+    "endMs": 106100,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "Okay.",
+    "startMs": 106100,
+    "endMs": 106910,
+    "speakerKey": "spk_2"
+  },
+  {
+    "text": "I'm not gonna ask you any questions about",
+    "startMs": 106910,
+    "endMs": 109870,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "could ask me any questions. Thank you.",
+    "startMs": 109870,
+    "endMs": 112310,
+    "speakerKey": "spk_2"
+  },
+  {
+    "text": "I'm not gonna ask you questions about your management style or why you don't like one on ones.",
+    "startMs": 112310,
+    "endMs": 116710,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "I'm not gonna ask you about",
+    "startMs": 116710,
+    "endMs": 118430,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "regulations or politics. I think all of those things are important, but",
+    "startMs": 118430,
+    "endMs": 122860,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "I",
+    "startMs": 122860,
+    "endMs": 123600,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "think that our audience can get them well covered elsewhere. Okay. What we do on Huge If True is",
+    "startMs": 123600,
+    "endMs": 128570,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "we make",
+    "startMs": 128570,
+    "endMs": 129600,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "optimistic explainer videos. Mhmm. And we've covered I'm the worst person to be an explainer video",
+    "startMs": 129600,
+    "endMs": 135540,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "I think you might be the best. And I think... And that's what I'm really hoping that we can do",
+    "startMs": 135540,
+    "endMs": 139880,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "together is make a joint explainer video about how can we",
+    "startMs": 139880,
+    "endMs": 144310,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "actually use technology to make the future better.",
+    "startMs": 144310,
+    "endMs": 147290,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "Yeah. And we do it because we believe that when people see those better futures, they help build them.",
+    "startMs": 147290,
+    "endMs": 151780,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "So the people that you're gonna be talking to are awesome. They are optimists who",
+    "startMs": 151780,
+    "endMs": 156320,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "want to build those better features.",
+    "startMs": 156320,
+    "endMs": 158420,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "But because we cover so many different topics, we've covered supersonic planes and quantum computers and particle colliders. It means that millions of people come into every episode without",
+    "startMs": 158420,
+    "endMs": 168820,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "any prior knowledge whatsoever.",
+    "startMs": 168820,
+    "endMs": 170760,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "You might be talking to an expert in their field who doesn't know the difference between a CPU and GPU.",
+    "startMs": 170760,
+    "endMs": 175340,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "Yeah. Yeah. A 12 year old who might grow up one day to be you,",
+    "startMs": 175340,
+    "endMs": 180090,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "but is just starting to learn.",
+    "startMs": 180090,
+    "endMs": 181530,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "For my part, I've now been preparing for this interview for",
+    "startMs": 181530,
+    "endMs": 186080,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "several months. I've... Including doing background conversations with many members of your team,",
+    "startMs": 186080,
+    "endMs": 191050,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "I'm not an engineer.",
+    "startMs": 191320,
+    "endMs": 192370,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "So my goal is to help",
+    "startMs": 192370,
+    "endMs": 194520,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "that audience",
+    "startMs": 194520,
+    "endMs": 195940,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "see the future that you see.",
+    "startMs": 195940,
+    "endMs": 197800,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "I'm gonna ask about three areas.",
+    "startMs": 197800,
+    "endMs": 199700,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "The first is, how did we get here?",
+    "startMs": 199700,
+    "endMs": 201890,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "What were the key insights that led to this big fundamental shift in computing that we're in now?",
+    "startMs": 201890,
+    "endMs": 206830,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "The second is",
+    "startMs": 206830,
+    "endMs": 207910,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "what's actually happening right now? Well, how did those insights lead to the world that we're",
+    "startMs": 207910,
+    "endMs": 212520,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "now living in that",
+    "startMs": 212520,
+    "endMs": 213610,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "seems like so much is going on all at once?",
+    "startMs": 213610,
+    "endMs": 215870,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "And the third is what is the vision for what you see coming next?",
+    "startMs": 215870,
+    "endMs": 220540,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "In order to talk about this big moment we're in with AI,",
+    "startMs": 221500,
+    "endMs": 225470,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "we need to go back to video games in the nineties.",
+    "startMs": 226470,
+    "endMs": 229520,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "At the time, I know game",
+    "startMs": 229520,
+    "endMs": 234010,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "developers wanted to create more realistic looking graphics, but the hardware couldn't keep up with",
+    "startMs": 234010,
+    "endMs": 238380,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "all of that necessary math. Not enough math. NVIDIA came",
+    "startMs": 238380,
+    "endMs": 242780,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "up with a solution that would change not just games,",
+    "startMs": 242780,
+    "endMs": 245490,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "but computing itself.",
+    "startMs": 245490,
+    "endMs": 248390,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "Could you take us back there and explain",
+    "startMs": 248390,
+    "endMs": 250420,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "what was happening and what were the insights that led you and the NVIDIA team to create",
+    "startMs": 250420,
+    "endMs": 256130,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "the first modern GPU?",
+    "startMs": 256130,
+    "endMs": 257270,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "So in the early nineties when we first started the company, we observed",
+    "startMs": 257270,
+    "endMs": 260890,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "that in a software program inside it,",
+    "startMs": 260890,
+    "endMs": 264370,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "there are just a few lines of code, maybe 10% of the code,",
+    "startMs": 264370,
+    "endMs": 268440,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "does 99% of the processing. And that 99% of the processing",
+    "startMs": 268440,
+    "endMs": 272960,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "could be done in parallel.",
+    "startMs": 272960,
+    "endMs": 274300,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "However, the other 90% of the code",
+    "startMs": 274300,
+    "endMs": 277470,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "has to be done sequentially.",
+    "startMs": 277470,
+    "endMs": 278860,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "It turns out that the proper computer, the perfect computer is one that could do",
+    "startMs": 278860,
+    "endMs": 283230,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "sequential processing and parallel processing, not just one or the other.",
+    "startMs": 283230,
+    "endMs": 288150,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "That was the big observation.",
+    "startMs": 288150,
+    "endMs": 289600,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "And we set out to build a company to solve",
+    "startMs": 289600,
+    "endMs": 292910,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "computer problems.",
+    "startMs": 292910,
+    "endMs": 294080,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "That normal computers can't. And that's really the beginning of NVIDIA.",
+    "startMs": 294080,
+    "endMs": 298900,
+    "speakerKey": "spk_0"
+  },
+  {
+    "text": "My favorite visual of why a CPU versus",
+    "startMs": 298900,
+    "endMs": 302610,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "a GPU really matters so much is a fifteen year old video on the",
+    "startMs": 302610,
+    "endMs": 306560,
+    "speakerKey": "spk_1"
+  },
+  {
+    "text": "NVIDIA YouTube channel, where the MythBusters, they use a little rope",
+    "startMs": 306560,
+    "endMs": 310265,
+    "speakerKey": "spk_1"
+  }
+]

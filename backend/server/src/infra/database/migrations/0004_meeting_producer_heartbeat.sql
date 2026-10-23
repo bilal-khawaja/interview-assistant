@@ -1,0 +1,1 @@
+ALTER TABLE "meetings" ADD COLUMN "producer_heartbeat_at" timestamp with time zone;

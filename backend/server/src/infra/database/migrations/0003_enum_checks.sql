@@ -1,0 +1,2 @@
+ALTER TABLE "meeting_participants" ADD CONSTRAINT "meeting_participants_role_check" CHECK ("meeting_participants"."role" IN ('host', 'interviewer', 'candidate', 'observer'));--> statement-breakpoint
+ALTER TABLE "meetings" ADD CONSTRAINT "meetings_status_check" CHECK ("meetings"."status" IN ('created', 'live', 'ended'));
