@@ -49,8 +49,6 @@ function TabBar() {
     const createTab = useChatTabsStore((s) => s.createTab);
     const createBrowserTab = useChatTabsStore((s) => s.createBrowserTab);
 
-    if (!activeTabId) return null;
-
     return (
         <div
             className="flex items-center gap-1 border-b border-border px-2 py-1"
@@ -420,15 +418,25 @@ function AiChat() {
     const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
     const pinnedTab = pinnedTabId && pinnedTabId !== activeTab?.id ? tabs.find((t) => t.id === pinnedTabId) : null;
 
-    if (!activeTab) return null;
-
     return (
         <SidebarProvider style={{ '--sidebar-width': '18rem' } as CSSProperties}>
             <AppSidebar />
             <AppSidebarInset className="min-w-0 overflow-hidden">
                 <div className="flex h-screen flex-col overflow-hidden bg-background">
                     <TabBar />
-                    {pinnedTab ? (
+                    {!activeTab ? (
+                        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
+                            <p className="text-sm">No open tabs</p>
+                            <button
+                                type="button"
+                                onClick={() => createTab(model)}
+                                className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground hover:bg-muted/50"
+                            >
+                                <Plus className="h-4 w-4" />
+                                New chat
+                            </button>
+                        </div>
+                    ) : pinnedTab ? (
                         <ResizablePanelGroup direction="horizontal" className="min-h-0 flex-1">
                             <ResizablePanel defaultSize={50} minSize={25}>
                                 <ChatPane tabId={activeTab.id} />
