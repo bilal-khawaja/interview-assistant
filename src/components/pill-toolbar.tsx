@@ -5,7 +5,7 @@ import { MarkdownRenderer } from '@/components/markdown-renderer';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Spinner } from '@/components/ui/spinner';
 
-const PILL_MODEL = 'gpt-4.1-nano';
+const PILL_MODEL = 'gpt-4.1-mini';
 const HEIGHT_COMPACT = 56;
 const HEIGHT_EXPANDED = 320;
 

@@ -12,6 +12,11 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("true")
       .transform((value) => value === "true"),
+    /** Unprompted chat suggestions on new transcript lines. Off: chats only answer questions. */
+    CHAT_SUGGESTIONS: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
   },
   runtimeEnv: {
     DATABASE_URL: process.env.DATABASE_URL,
@@ -20,6 +25,7 @@ export const env = createEnv({
     YOUTUBE_URL: process.env.YOUTUBE_URL,
     PORT: process.env.PORT,
     STREAM_ANSWER: process.env.STREAM_ANSWER,
+    CHAT_SUGGESTIONS: process.env.CHAT_SUGGESTIONS,
   },
   emptyStringAsUndefined: true,
 });

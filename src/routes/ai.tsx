@@ -12,6 +12,10 @@ import { useWebSearchSetting } from '@/lib/use-web-search-setting';
 import { useReasoningSetting } from '@/lib/use-reasoning-setting';
 import { MODELS } from '@/lib/models';
 import { useChatTabsStore } from '@/lib/chat-tabs-store';
+import { closeChatTab, startMeetingChat } from '@/lib/meeting-chat-actions';
+import { meetingChatStore } from '@/lib/meeting-chat-client';
+import { useMeetings } from '@/lib/transcript-client';
+import { MeetingChatPane } from '@/components/meetings/meeting-chat-pane';
 import { MarkdownRenderer } from '@/components/markdown-renderer';
 import { BrowserFindBar } from '@/components/browser-find-bar';
 import { ChatFindBar } from '@/components/chat-find-bar';
@@ -45,11 +49,14 @@ function TabBar() {
     const pinnedTabId = useChatTabsStore((s) => s.pinnedTabId);
     const setActiveTabId = useChatTabsStore((s) => s.setActiveTabId);
     const setPinnedTabId = useChatTabsStore((s) => s.setPinnedTabId);
-    const closeTab = useChatTabsStore((s) => s.closeTab);
     const createTab = useChatTabsStore((s) => s.createTab);
     const createBrowserTab = useChatTabsStore((s) => s.createBrowserTab);
+    const { meeting } = useMeetings();
+    const [meetingChatError, setMeetingChatError] = useState<string | null>(null);
+    const liveMeeting = meeting?.status === 'live' ? meeting : null;
 
     return (
+        <>
         <div
             className="flex items-center gap-1 border-b border-border px-2 py-1"
             style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
@@ -119,7 +126,7 @@ function TabBar() {
                                 className="absolute right-1 flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-black/10 hover:text-foreground"
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    closeTab(tab.id);
+                                    closeChatTab(tab.id);
                                 }}
                             >
                                 <X className="h-3.5 w-3.5" />
@@ -151,10 +158,26 @@ function TabBar() {
                         <DropdownMenuItem onClick={() => createBrowserTab()}>
                             Open Browser
                         </DropdownMenuItem>
+                        <DropdownMenuItem
+                            disabled={!liveMeeting}
+                            onClick={() => {
+                                if (!liveMeeting) return;
+                                setMeetingChatError(null);
+                                void startMeetingChat(liveMeeting).then(setMeetingChatError);
+                            }}
+                        >
+                            {liveMeeting ? 'New meeting chat' : 'New meeting chat (no live meeting)'}
+                        </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
         </div>
+        {meetingChatError && (
+            <Alert variant="destructive" className="m-2 w-auto">
+                <AlertDescription>Could not start a meeting chat: {meetingChatError}</AlertDescription>
+            </Alert>
+        )}
+        </>
     );
 }
 
@@ -309,6 +332,10 @@ function ChatPane({ tabId }: { tabId: string }) {
         return <BrowserTab url={tab.url ?? ''} />;
     }
 
+    if (tab.type === 'meeting' && tab.meetingId && tab.chatId) {
+        return <MeetingChatPane meetingId={tab.meetingId} chatId={tab.chatId} />;
+    }
+
     const isEmpty = tab.messages.length === 0 && !tab.streamingText && !tab.error && !activeThought;
 
     return (
@@ -414,6 +441,16 @@ function AiChat() {
         if (tabs.length === 0) createTab(model);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [hasHydrated]);
+
+    // Meeting chats saved with the tabs are followed again once the tabs are back. The store
+    // outlives this page, so a chat already open (navigating back here) is left alone.
+    useEffect(() => {
+        if (!hasHydrated) return;
+        for (const tab of tabs) {
+            if (tab.type !== 'meeting' || !tab.meetingId || !tab.chatId) continue;
+            if (!meetingChatStore.getState().chats[tab.chatId]) void meetingChatStore.open(tab.meetingId, tab.chatId);
+        }
+    }, [hasHydrated, tabs]);
 
     const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
     const pinnedTab = pinnedTabId && pinnedTabId !== activeTab?.id ? tabs.find((t) => t.id === pinnedTabId) : null;

@@ -4,6 +4,7 @@ import type { AppRouter } from '../main';
 import type { AiChatRendererHandlers } from '../ai/controllers/ai-chat.handlers';
 import type { WindowRendererHandlers } from '../window/window.handlers';
 import type { TranscriptRendererHandlers } from '../transcript/controllers/transcript.handlers';
+import type { MeetingChatRendererHandlers } from '../transcript/controllers/meeting-chat.handlers';
 
 /** react-query-backed client: `.useMutation()` / `.useQuery()` per procedure. */
 export const tipcClient = createQueryClient<AppRouter>({ ipcInvoke: window.ipc.invoke });
@@ -22,6 +23,11 @@ export const windowHandlers = createEventHandlers<WindowRendererHandlers>({
 });
 
 export const transcriptHandlers = createEventHandlers<TranscriptRendererHandlers>({
+  on: window.ipc.on,
+  send: window.ipc.send,
+});
+
+export const meetingChatHandlers = createEventHandlers<MeetingChatRendererHandlers>({
   on: window.ipc.on,
   send: window.ipc.send,
 });

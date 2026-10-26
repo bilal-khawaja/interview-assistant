@@ -4,7 +4,8 @@ import type { ChatMessage } from '@/types/chat-message.model';
 
 export interface ChatTab {
   id: string;
-  type: 'chat' | 'browser';
+  /** 'meeting' is a chat on the transcript backend: its messages live there, not in this tab. */
+  type: 'chat' | 'browser' | 'meeting';
   title: string;
   messages: ChatMessage[];
   model: string;
@@ -14,6 +15,9 @@ export interface ChatTab {
   error: string | null;
   createdAt: number;
   url?: string;
+  /** Set on 'meeting' tabs. */
+  meetingId?: string;
+  chatId?: string;
 }
 
 interface ChatTabsState {
@@ -22,6 +26,8 @@ interface ChatTabsState {
   pinnedTabId: string | null;
   createTab: (model: string) => string;
   createBrowserTab: (url?: string) => string;
+  /** Opens a backend chat as a tab; a chat that already has one is just brought forward. */
+  createMeetingTab: (meetingId: string, chatId: string, title: string) => string;
   closeTab: (tabId: string) => void;
   setActiveTabId: (tabId: string) => void;
   setPinnedTabId: (tabId: string | null) => void;
@@ -70,6 +76,23 @@ function newBrowserTab(url: string): ChatTab {
   };
 }
 
+function newMeetingTab(meetingId: string, chatId: string, title: string): ChatTab {
+  return {
+    id: crypto.randomUUID(),
+    type: 'meeting',
+    title,
+    messages: [],
+    model: '',
+    streamingText: '',
+    streamingReasoning: '',
+    isStreaming: false,
+    error: null,
+    createdAt: Date.now(),
+    meetingId,
+    chatId,
+  };
+}
+
 let isAnyStreaming = false;
 let pendingWrite: { key: string; value: string } | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -115,6 +138,17 @@ export const useChatTabsStore = create<ChatTabsState>()(
 
       createBrowserTab: (url) => {
         const tab = newBrowserTab(url || 'https://www.google.com');
+        set((state) => ({ tabs: [...state.tabs, tab], activeTabId: tab.id }));
+        return tab.id;
+      },
+
+      createMeetingTab: (meetingId, chatId, title) => {
+        const existing = get().tabs.find((t) => t.type === 'meeting' && t.chatId === chatId);
+        if (existing) {
+          set({ activeTabId: existing.id });
+          return existing.id;
+        }
+        const tab = newMeetingTab(meetingId, chatId, title);
         set((state) => ({ tabs: [...state.tabs, tab], activeTabId: tab.id }));
         return tab.id;
       },

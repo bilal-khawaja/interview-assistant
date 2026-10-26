@@ -148,6 +148,27 @@ run("ChatRunner", () => {
     expect((await messages.tail(chat, 1))[0]?.transcriptSeq).toBe(2);
   });
 
+  test("with suggestions off a batch only advances the cursor: no agent call, message, terms or charge", async () => {
+    const chat = await newChat("no suggestions");
+    const agent = new StubChatAgent();
+    const runner = new ChatRunner({ db, coordinator: new KeyedCoordinator(), agent, suggestions: false });
+    await runner.handleTranscript(chat, [segment(1, "We talked about Postgres today"), segment(2, "and Kafka too")]);
+    expect(agent.calls).toHaveLength(0);
+    expect(await content(chat)).toEqual([]);
+    expect(await terms.list(chat)).toEqual([]);
+    expect((await cursors.get(chat))?.lastSeenSeq).toBe(2);
+    expect((await budgets.get(chat))?.tokensUsed ?? 0).toBe(0);
+  });
+
+  test("with suggestions off a user message is still answered", async () => {
+    const chat = await newChat("no suggestions, asked");
+    const runner = new ChatRunner({ db, coordinator: new KeyedCoordinator(), agent: new StubChatAgent(), suggestions: false });
+    await runner.handleTranscript(chat, [segment(1, "Postgres")]);
+    const { done } = await runner.submit(chat, id(), "followup", "what was said?");
+    await done;
+    expect(await content(chat)).toEqual(["user/followup:what was said?", "assistant/reply:re: what was said?"]);
+  });
+
   test("a batch that only repeats surfaced terms makes no suggestion but still advances", async () => {
     const chat = await newChat("repeat");
     const runner = make(new StubChatAgent());

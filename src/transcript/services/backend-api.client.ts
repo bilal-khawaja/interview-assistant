@@ -1,3 +1,4 @@
+import type { BackendChat, BackendChatMessage, SendMode } from '../../types/meeting-chat';
 import type { Meeting, StartMeetingInput } from '../../types/transcript';
 
 export class BackendApiError extends Error {
@@ -55,6 +56,41 @@ export class BackendApi {
       method: 'POST',
       timeoutMs: END_TIMEOUT_MS,
     });
+  }
+
+  async listChats(meetingId: string): Promise<BackendChat[]> {
+    const body = await this.request<{ chats: BackendChat[] }>(`/meetings/${encodeURIComponent(meetingId)}/chats`);
+    return body.chats;
+  }
+
+  createChat(meetingId: string, title = ''): Promise<BackendChat> {
+    return this.request<BackendChat>(`/meetings/${encodeURIComponent(meetingId)}/chats`, {
+      method: 'POST',
+      body: { title },
+    });
+  }
+
+  /** The reply arrives on the chat's stream, not in this response. */
+  postChatMessage(
+    meetingId: string,
+    chatId: string,
+    message: { messageId: string; text: string; mode: SendMode },
+  ): Promise<{ messageId: string; created: boolean }> {
+    return this.request(`/meetings/${encodeURIComponent(meetingId)}/chats/${encodeURIComponent(chatId)}/messages`, {
+      method: 'POST',
+      body: message,
+    });
+  }
+
+  async listChatMessages(
+    meetingId: string,
+    chatId: string,
+    after = 0,
+    limit = 100,
+  ): Promise<{ messages: BackendChatMessage[]; head: number }> {
+    return this.request(
+      `/meetings/${encodeURIComponent(meetingId)}/chats/${encodeURIComponent(chatId)}/messages?after=${after}&limit=${limit}`,
+    );
   }
 
   private async request<T = unknown>(

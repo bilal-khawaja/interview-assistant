@@ -1,6 +1,13 @@
 import { useState, type CSSProperties } from 'react';
-import { createFileRoute, Link } from '@tanstack/react-router';
-import { IconBrandYoutube, IconMicrophone, IconPlayerStopFilled, IconPlus, IconX } from '@tabler/icons-react';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import {
+    IconBrandYoutube,
+    IconMessageChatbot,
+    IconMicrophone,
+    IconPlayerStopFilled,
+    IconPlus,
+    IconX,
+} from '@tabler/icons-react';
 import { MeetingList } from '@/components/meetings/meeting-list';
 import { StartMeetingDialog } from '@/components/meetings/start-meeting-dialog';
 import { StatusChip } from '@/components/meetings/status-chip';
@@ -18,6 +25,7 @@ import {
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Spinner } from '@/components/ui/spinner';
 import { AppSidebar, AppSidebarInset } from '@/layout/sidebar';
+import { startMeetingChat } from '@/lib/meeting-chat-actions';
 import { transcriptStore, useMeetings } from '@/lib/transcript-client';
 
 export const Route = createFileRoute('/meetings')({
@@ -43,7 +51,20 @@ function MeetingsPage() {
     const state = useMeetings();
     const [startOpen, setStartOpen] = useState(false);
     const [endOpen, setEndOpen] = useState(false);
+    const [chatStarting, setChatStarting] = useState(false);
+    const [chatError, setChatError] = useState<string | null>(null);
+    const navigate = useNavigate();
     const { meeting, runningHere } = state;
+
+    const startChat = async () => {
+        if (!meeting || chatStarting) return;
+        setChatStarting(true);
+        setChatError(null);
+        const error = await startMeetingChat(meeting);
+        setChatStarting(false);
+        if (error) setChatError(error);
+        else void navigate({ to: '/ai' });
+    };
 
     const trouble =
         state.status === 'degraded' || state.status === 'reconnecting' ? (state.detail ?? 'Connection problem') : null;
@@ -62,6 +83,12 @@ function MeetingsPage() {
                     <SidebarTrigger />
                     <h1 className="text-base font-semibold">Meetings</h1>
                     <div className="ml-auto flex items-center gap-2">
+                        {meeting?.status === 'live' && (
+                            <Button variant="outline" size="sm" disabled={chatStarting} onClick={() => void startChat()}>
+                                {chatStarting ? <Spinner className="mr-2 size-4" /> : <IconMessageChatbot className="mr-1 size-4" />}
+                                Start chat
+                            </Button>
+                        )}
                         {runningHere ? (
                             <Button
                                 variant="destructive"
@@ -81,6 +108,17 @@ function MeetingsPage() {
                         )}
                     </div>
                 </div>
+
+                {chatError && (
+                    <Alert variant="destructive" className="m-3 w-auto">
+                        <AlertDescription className="flex items-start justify-between gap-2">
+                            <span>Could not start a chat: {chatError}</span>
+                            <button type="button" className="text-xs underline" onClick={() => setChatError(null)}>
+                                Dismiss
+                            </button>
+                        </AlertDescription>
+                    </Alert>
+                )}
 
                 {state.backend === 'down' && (
                     <Alert variant="destructive" className="m-3 w-auto">

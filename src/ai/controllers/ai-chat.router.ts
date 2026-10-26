@@ -35,7 +35,7 @@ export interface AiTitleChatOutput {
 const t = tipc.create();
 
 const MARKDOWN_SYSTEM_PROMPT = 'Always respond using Markdown formatting (headings, lists, code fences with language tags, tables, bold/italic) where appropriate.';
-const TITLE_MODEL = 'gpt-4.1-nano';
+const TITLE_MODEL = 'gpt-4.1-mini';
 const TITLE_SYSTEM_PROMPT = 'Generate a short chat title (3-5 words, no quotes, no punctuation at the end) that summarizes the user message. Reply with only the title text.';
 
 export function createAiChatRouter(service: AiChatService) {

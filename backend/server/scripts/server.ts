@@ -48,6 +48,7 @@ const runner = new ChatRunner({
   coordinator: new KeyedCoordinator(),
   agent: new MastraChatAgent(createChatAgent()),
   summarizer: new MastraChatSummarizer(createSummarizerAgent()),
+  suggestions: env.CHAT_SUGGESTIONS,
   onError: (error, chatId) => console.error(`SERVER chat ${chatId} turn failed`, error),
 });
 const cursors = new CursorService({ chats, cursors: new CursorRepository(db), segments });

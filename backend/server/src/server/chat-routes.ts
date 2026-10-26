@@ -6,7 +6,7 @@ import type { ChatRunner } from "../chat/runner";
 import { InboxIdConflictError } from "../db/repositories/chat-inbox.repository";
 import type { ChatMessageRepository } from "../db/repositories/chat-message.repository";
 import type { ChatRepository } from "../db/repositories/meeting.repository";
-import type { ChatMessage } from "../db/schema";
+import type { Chat, ChatMessage } from "../db/schema";
 import { INBOX_MODES } from "../db/schema";
 import { runChatStream, messageFrame, type ChatStreamDeps } from "./chat-stream";
 import type { StreamVariables } from "./app";
@@ -15,7 +15,7 @@ import { sinkFor } from "./sink";
 export type ChatApiDeps = ChatStreamDeps & {
   runner: Pick<ChatRunner, "submit" | "open">;
   host: Pick<ChatHost, "start">;
-  chats: Pick<ChatRepository, "create" | "findInMeeting">;
+  chats: Pick<ChatRepository, "create" | "findInMeeting" | "listByMeeting">;
   messages: Pick<ChatMessageRepository, "head" | "listAfter">;
 };
 
@@ -49,8 +49,15 @@ export function mountChatRoutes(
     if (!body.success) return c.json({ error: "invalid body", issues: body.error.issues }, 400);
     const chat = await deps.chats.create(meetingId, body.data.title);
     await deps.runner.open(chat.id);
-    deps.host.start(meetingId, chat.id);
-    return c.json({ id: chat.id, meetingId, title: chat.title }, 201);
+    // A chat opened mid-meeting reads from now on: it does not replay what was said before.
+    deps.host.start(meetingId, chat.id, { kind: "tail", tail: 0 });
+    return c.json(chatJson(chat), 201);
+  });
+
+  app.get("/meetings/:id/chats", async (c) => {
+    const meetingId = c.req.param("id");
+    if (!UUID.test(meetingId) || !(await meetingExists(meetingId))) return c.json({ error: "not found" }, 404);
+    return c.json({ chats: (await deps.chats.listByMeeting(meetingId)).map(chatJson) });
   });
 
   app.post("/meetings/:id/chats/:chatId/messages", async (c) => {
@@ -120,6 +127,10 @@ export function mountChatRoutes(
     const chat = await deps.chats.findInMeeting(meetingId, chatId);
     return chat ? { meetingId, chatId } : null;
   }
+}
+
+function chatJson(chat: Chat) {
+  return { id: chat.id, meetingId: chat.meetingId, title: chat.title, createdAt: chat.createdAt.toISOString() };
 }
 
 /** Same shape as the stream's message frames, minus the frame type. */

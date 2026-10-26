@@ -1,4 +1,4 @@
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, ne } from "drizzle-orm";
 import type { Executor } from "../client";
 import {
   chatBudget,
@@ -81,6 +81,11 @@ export class ChatRepository extends BaseRepository<typeof chats> {
       .innerJoin(meetings, eq(meetings.id, chats.meetingId))
       .where(ne(meetings.status, "ended"));
     return rows.map((row) => row.chat);
+  }
+
+  /** Oldest first. */
+  listByMeeting(meetingId: string): Promise<Chat[]> {
+    return this.findMany({ where: eq(chats.meetingId, meetingId), orderBy: asc(chats.createdAt) });
   }
 
   findInMeeting(meetingId: string, chatId: string): Promise<Chat | null> {

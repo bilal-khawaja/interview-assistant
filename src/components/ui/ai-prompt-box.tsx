@@ -329,6 +329,10 @@ interface PromptInputBoxProps {
   models: PromptInputModelOption[];
   model: string;
   onModelChange: (value: string) => void;
+  /** Shows the model but does not let the user change it. */
+  modelDisabled?: boolean;
+  /** Greys out the paperclip and ignores files that are dropped or pasted. */
+  attachDisabled?: boolean;
   webSearch: boolean;
   onWebSearchChange: (value: boolean) => void;
   webSearchDisabled?: boolean;
@@ -348,6 +352,8 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
     models,
     model,
     onModelChange,
+    modelDisabled = false,
+    attachDisabled = false,
     webSearch,
     onWebSearchChange,
     webSearchDisabled = false,
@@ -368,6 +374,7 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
   const selectedModel = models.find((m) => m.value === model) ?? models[0];
 
   const addFiles = (incoming: FileList | File[]) => {
+    if (attachDisabled) return;
     setFiles((prev) => [...prev, ...Array.from(incoming)]);
   };
 
@@ -500,7 +507,8 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="h-8 w-8 rounded-full flex items-center justify-center text-[#9CA3AF] hover:text-[#D1D5DB] hover:bg-[#3A3A40] transition-colors"
+              disabled={attachDisabled}
+              className="h-8 w-8 rounded-full flex items-center justify-center text-[#9CA3AF] hover:text-[#D1D5DB] hover:bg-[#3A3A40] transition-colors disabled:opacity-30 disabled:pointer-events-none"
             >
               <Paperclip className="w-4 h-4" />
             </button>
@@ -614,7 +622,8 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="flex items-center gap-1 rounded-full bg-[#2E3033] px-3 py-1 text-[11px] font-medium text-[#D1D5DB] transition-colors hover:bg-[#3A3A40]"
+                disabled={modelDisabled}
+                className="flex items-center gap-1 rounded-full bg-[#2E3033] px-3 py-1 text-[11px] font-medium text-[#D1D5DB] transition-colors hover:bg-[#3A3A40] disabled:opacity-50 disabled:pointer-events-none"
               >
                 {selectedModel?.label ?? model}
                 <ChevronUp className="h-3 w-3" />

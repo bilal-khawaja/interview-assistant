@@ -25,6 +25,8 @@ import { createUpdateRouter } from './window/window.update.router';
 import { BackendApi } from './transcript/services/backend-api.client';
 import { MeetingService } from './transcript/services/meeting.service';
 import { createTranscriptRouter } from './transcript/controllers/transcript.router';
+import { createMeetingChatRouter } from './transcript/controllers/meeting-chat.router';
+import { MeetingChatService } from './transcript/services/meeting-chat.service';
 import { DEFAULT_BACKEND_URL } from './transcript/backend-url';
 import { createUpdateWindow, createPillWindow, positionPillTopCenter, PILL_WIDTH } from './window/window.settings';
 
@@ -66,6 +68,8 @@ const aiChatService = new AiChatService(new OpenaiChatAdapterFactory());
 const aiRealtimeService = new AiRealtimeService(new OpenaiRealtimeTokenAdapterFactory());
 // The renderer overrides the URL from its saved setting at startup (transcriptConfigure).
 const meetingService = new MeetingService(new BackendApi(process.env.BACKEND_URL?.trim() || DEFAULT_BACKEND_URL));
+// Shares the meeting service's API client, so a changed backend URL applies to chats too.
+const meetingChatService = new MeetingChatService(meetingService.api);
 
 // Single source of truth for click-through state, shared between the
 // settings toggle (renderer -> tipc) and the Ctrl+Shift+X shortcut, so
@@ -137,6 +141,7 @@ const router = {
   window: createWindowRouter(applyClickThrough, applyOpacity, resizePill, hidePill),
   update: createUpdateRouter(() => updateWindow),
   transcript: createTranscriptRouter(meetingService),
+  meetingChat: createMeetingChatRouter(meetingChatService),
   // upgrade: createUpgradeRouter(() => upgradeWindow),
 };
 registerIpcMain(router);

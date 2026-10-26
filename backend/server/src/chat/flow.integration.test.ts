@@ -15,6 +15,7 @@ import { CursorService } from "../log/cursor";
 import { WakeHub } from "../log/wake";
 import type { ChatAgent, ChatAgentResult, ChatTurn } from "./agent";
 import { runChatConsumer } from "./chat-consumer";
+import { ChatHost } from "./host";
 import { KeyedCoordinator } from "./keyed-coordinator";
 import { ChatRunner } from "./runner";
 import { StubChatAgent } from "./stub-agent";
@@ -122,6 +123,62 @@ run("chat flow (postgres)", () => {
   afterAll(async () => {
     await db.delete(meetingsTable).where(eq(meetingsTable.id, meetingId));
     await client!.close();
+  });
+
+  describe("late chat", () => {
+    /** Records every segment the chat's turns are given, and answers with nothing to say. */
+    class RecordingAgent implements ChatAgent {
+      readonly seen: number[] = [];
+      async respond(turn: ChatTurn): Promise<ChatAgentResult> {
+        this.seen.push(...turn.transcript.map((s) => s.seq));
+        return { text: null, terms: [], usage: { tokensIn: 1, tokensOut: 1, costMicros: 0 } };
+      }
+    }
+
+    const hostFor = (runner: ChatRunner) =>
+      new ChatHost({
+        runner,
+        consumer: new TranscriptConsumer({
+          hub: new WakeHub(),
+          readAfter: (m, after, limit) => segments.readAfter(m, after, limit),
+          sql: client!.sql,
+          cursors: cursorService(),
+          pollMs: 30,
+        }),
+        cursors: cursorService(),
+        onError: (e) => errors.push(e),
+      });
+
+    test("a chat started with tail 0 skips what was said before it and reads what comes after", async () => {
+      const chat = await newChat("late-tail");
+      await addSegments(["one", "two", "three"]);
+      const before = await segments.head(meetingId);
+
+      const agent = new RecordingAgent();
+      const host = hostFor(makeRunner(agent));
+      host.start(meetingId, chat, { kind: "tail", tail: 0 });
+      await until(async () => (await cursors.get(chat))?.lastSeenSeq === before);
+
+      await addSegments(["four", "five"]);
+      const after = await segments.head(meetingId);
+      await until(() => agent.seen.includes(after));
+      await host.stop();
+
+      expect(agent.seen.every((seq) => seq > before)).toBe(true);
+      expect(agent.seen).toContain(before + 1);
+      expect((await cursors.get(chat))?.lastSeenSeq).toBe(after);
+    });
+
+    test("a chat started without an attach mode still replays the meeting from the start", async () => {
+      const chat = await newChat("late-beginning");
+      const agent = new RecordingAgent();
+      const host = hostFor(makeRunner(agent));
+      host.start(meetingId, chat);
+      const head = await segments.head(meetingId);
+      await until(() => agent.seen.includes(head));
+      await host.stop();
+      expect(Math.min(...agent.seen)).toBe(1);
+    });
   });
 
   describe("crash mid-turn", () => {

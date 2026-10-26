@@ -1,5 +1,5 @@
 import { ConsumerAlreadyActiveError, type TranscriptConsumer } from "../log/consumer";
-import type { CursorService } from "../log/cursor";
+import type { AttachMode, CursorService } from "../log/cursor";
 import { runChatConsumer } from "./chat-consumer";
 import type { ChatRunner } from "./runner";
 
@@ -21,8 +21,11 @@ export class ChatHost {
 
   constructor(private readonly deps: HostDeps) {}
 
-  /** Idempotent: starting a chat that already runs here does nothing. */
-  start(meetingId: string, chatId: string): void {
+  /**
+   * Idempotent: starting a chat that already runs here does nothing. `attach` only matters the
+   * first time: a chat with a cursor resumes from it.
+   */
+  start(meetingId: string, chatId: string, attach?: AttachMode): void {
     if (this.running.has(chatId) || this.abort.signal.aborted) return;
     const task = runChatConsumer({
       consumer: this.deps.consumer,
@@ -30,6 +33,7 @@ export class ChatHost {
       cursors: this.deps.cursors,
       meetingId,
       chatId,
+      attach,
       signal: this.abort.signal,
       onError: (error) => this.deps.onError?.(error, chatId),
       onOutage: (error, attempt) => this.deps.onOutage?.(error, attempt, chatId),

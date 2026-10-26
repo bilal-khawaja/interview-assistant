@@ -1,8 +1,12 @@
 // Test double for backend/server: the same REST routes and WebSocket frames, in memory.
 // Bun-only; excluded from the app's tsconfig.
+import type { BackendChat, BackendChatKind, BackendChatMessage, BackendChatRole } from '../../types/meeting-chat';
 import type { Meeting, TranscriptSegment } from '../../types/transcript';
 
-type SocketData = { kind: 'stream'; meetingId: string; after: number } | { kind: 'audio'; meetingId: string };
+type SocketData =
+  | { kind: 'stream'; meetingId: string; after: number }
+  | { kind: 'audio'; meetingId: string }
+  | { kind: 'chat'; meetingId: string; chatId: string; after: number };
 
 export class FakeBackend {
   readonly segments = new Map<string, TranscriptSegment[]>();
@@ -10,6 +14,13 @@ export class FakeBackend {
   readonly audioFrames: Uint8Array[] = [];
   readonly streams = new Set<Bun.ServerWebSocket<SocketData>>();
   readonly audios = new Set<Bun.ServerWebSocket<SocketData>>();
+  readonly chats = new Map<string, BackendChat[]>();
+  readonly chatMessages = new Map<string, BackendChatMessage[]>();
+  readonly chatSockets = new Set<Bun.ServerWebSocket<SocketData>>();
+  /** Every message posted to a chat, in order, as the backend received it. */
+  readonly chatPosts: { chatId: string; messageId: string; text: string; mode: string }[] = [];
+  /** Chat stream sockets opened, with the resume point each asked for. */
+  chatStreamOpens: { chatId: string; after: number }[] = [];
   heartbeatMs = 60_000;
   /** Sent right after "ready" on every stream connection (tests inject frames here). */
   afterReady: ((ws: Bun.ServerWebSocket<SocketData>) => void) | null = null;
@@ -40,6 +51,7 @@ export class FakeBackend {
         close: (ws) => {
           this.streams.delete(ws);
           this.audios.delete(ws);
+          this.chatSockets.delete(ws);
         },
       },
     });
@@ -54,7 +66,7 @@ export class FakeBackend {
   /** Closes the listener and drops every open socket, as if the backend process died. */
   async kill(): Promise<number> {
     const port = this.port;
-    for (const ws of [...this.streams, ...this.audios]) ws.close(1011, 'killed');
+    for (const ws of [...this.streams, ...this.audios, ...this.chatSockets]) ws.close(1011, 'killed');
     await this.server.stop(true);
     return port;
   }
@@ -100,6 +112,52 @@ export class FakeBackend {
     return segment;
   }
 
+  addChat(meetingId: string, title = ''): BackendChat {
+    const chat: BackendChat = {
+      id: `10000000-0000-4000-8000-${String(++this.counter).padStart(12, '0')}`,
+      meetingId,
+      title,
+      createdAt: new Date().toISOString(),
+    };
+    this.chats.set(meetingId, [...(this.chats.get(meetingId) ?? []), chat]);
+    this.chatMessages.set(chat.id, []);
+    return chat;
+  }
+
+  /** Appends a chat message and sends it to every open stream of the chat. */
+  pushChatMessage(
+    chatId: string,
+    role: BackendChatRole,
+    kind: BackendChatKind,
+    content: string,
+    extra: Partial<BackendChatMessage> = {},
+  ): BackendChatMessage {
+    const log = this.chatMessages.get(chatId)!;
+    const message: BackendChatMessage = {
+      id: crypto.randomUUID(),
+      seq: log.length + 1,
+      role,
+      kind,
+      content,
+      transcriptSeq: null,
+      createdAt: new Date().toISOString(),
+      ...extra,
+    };
+    log.push(message);
+    for (const ws of this.chatSockets) {
+      if (ws.data.kind === 'chat' && ws.data.chatId === chatId) ws.send(JSON.stringify({ type: 'message', ...message }));
+    }
+    return message;
+  }
+
+  dropChatStreams(code = 1006): void {
+    for (const ws of this.chatSockets) ws.close(code, 'dropped');
+  }
+
+  broadcastChat(frame: unknown): void {
+    for (const ws of this.chatSockets) ws.send(JSON.stringify(frame));
+  }
+
   end(meetingId: string): void {
     const meeting = this.meetings.get(meetingId);
     if (meeting) this.meetings.set(meetingId, { ...meeting, status: 'ended', source: null, endedAt: new Date().toISOString() });
@@ -118,6 +176,10 @@ export class FakeBackend {
       this.audios.add(ws);
       return;
     }
+    if (ws.data.kind === 'chat') {
+      this.onChatOpen(ws, ws.data);
+      return;
+    }
     const { meetingId, after } = ws.data;
     this.streamOpens.push({ meetingId, after });
     const log = this.segments.get(meetingId) ?? [];
@@ -132,6 +194,62 @@ export class FakeBackend {
     this.afterReady?.(ws);
   }
 
+  private onChatOpen(ws: Bun.ServerWebSocket<SocketData>, data: { meetingId: string; chatId: string; after: number }): void {
+    const { meetingId, chatId, after } = data;
+    this.chatStreamOpens.push({ chatId, after });
+    const log = this.chatMessages.get(chatId) ?? [];
+    if (after > log.length) {
+      ws.send(JSON.stringify({ type: 'error', code: 'cursor_ahead', message: `after=${after} is beyond the chat head ${log.length}` }));
+      ws.close(4409, 'cursor ahead of head');
+      return;
+    }
+    ws.send(JSON.stringify({ type: 'ready', stream: 'chat', meetingId, chatId, after, head: log.length, heartbeatMs: this.heartbeatMs }));
+    this.chatSockets.add(ws);
+    for (const message of log.slice(after)) ws.send(JSON.stringify({ type: 'message', ...message }));
+  }
+
+  private async handleChats(
+    req: Request,
+    server: Bun.Server<SocketData>,
+    url: URL,
+    meetingId: string,
+    parts: string[],
+  ): Promise<Response | undefined> {
+    const json = (body: unknown, status = 200) => Response.json(body, { status });
+    const chatId = parts[3];
+    if (!chatId) {
+      if (req.method === 'GET') return json({ chats: this.chats.get(meetingId) ?? [] });
+      if (req.method === 'POST') {
+        const body = (await req.json()) as { title?: string };
+        return json(this.addChat(meetingId, body.title ?? ''), 201);
+      }
+    }
+    const chat = (this.chats.get(meetingId) ?? []).find((c) => c.id === chatId);
+    if (!chat) return json({ error: 'not found' }, 404);
+    const log = this.chatMessages.get(chat.id)!;
+    if (parts[4] === 'messages' && req.method === 'POST') {
+      const body = (await req.json()) as { messageId?: string; mode?: string; text?: string };
+      if (!body.text?.trim()) return json({ error: 'invalid body' }, 400);
+      const messageId = body.messageId ?? crypto.randomUUID();
+      this.chatPosts.push({ chatId: chat.id, messageId, text: body.text, mode: body.mode ?? 'followup' });
+      if (log.some((m) => m.id === messageId)) return json({ messageId, created: false });
+      this.pushChatMessage(chat.id, 'user', (body.mode ?? 'followup') as BackendChatKind, body.text, { id: messageId });
+      return json({ messageId, created: true }, 202);
+    }
+    if (parts[4] === 'messages' && req.method === 'GET') {
+      const after = Number(url.searchParams.get('after') ?? '0');
+      const limit = Number(url.searchParams.get('limit') ?? '100');
+      return json({ messages: log.filter((m) => m.seq > after).slice(0, limit), head: log.length });
+    }
+    if (parts[4] === 'stream') {
+      if (this.refuseStreams) return json({ error: 'unavailable' }, 503);
+      const after = Number(url.searchParams.get('after') ?? '0');
+      if (server.upgrade(req, { data: { kind: 'chat', meetingId, chatId: chat.id, after } })) return undefined;
+      return json({ error: 'upgrade failed' }, 400);
+    }
+    return json({ error: 'not found' }, 404);
+  }
+
   private async handle(req: Request, server: Bun.Server<SocketData>): Promise<Response | undefined> {
     const url = new URL(req.url);
     const json = (body: unknown, status = 200) => Response.json(body, { status });
@@ -141,6 +259,7 @@ export class FakeBackend {
 
     if (parts[0] === 'meetings') {
       const id = parts[1];
+      if (id && parts[2] === 'chats' && this.meetings.has(id)) return this.handleChats(req, server, url, id, parts);
       if (!id && req.method === 'GET') {
         return json({ meetings: [...this.meetings.values()].reverse() });
       }

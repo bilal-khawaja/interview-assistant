@@ -39,6 +39,12 @@ export type RunnerDeps = {
   historyLimit?: number;
   transcriptWindow?: number;
   systemPrompt?: string;
+  /**
+   * Whether transcript batches may produce unprompted suggestions. Default true. When false,
+   * a batch only moves the chat's cursor: no agent call, no charge, no message, so nothing
+   * enters the chat's history that the user never asked for.
+   */
+  suggestions?: boolean;
   onError?: (error: unknown, chatId: string) => void;
 };
 
@@ -143,6 +149,11 @@ export class ChatRunner {
       if (!last) return;
       const db = this.deps.db;
       await this.ensureState(chatId);
+
+      if (this.deps.suggestions === false) {
+        await new CursorRepository(db).advance(chatId, last.seq);
+        return;
+      }
 
       if ((await new ChatBudgetRepository(db).remaining(chatId)) <= 0) {
         await db.transaction(async (tx) => {

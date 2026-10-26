@@ -82,6 +82,7 @@ run("chat API (postgres)", () => {
   const chatHub = new WakeHub();
   const bridge = new PgWakeBridge(sql, chatHub, "chat_messages");
   const started: string[] = [];
+  const attaches = new Map<string, unknown>();
   const errors: unknown[] = [];
   let meetingId: string;
   let server: ReturnType<typeof Bun.serve>;
@@ -135,7 +136,12 @@ run("chat API (postgres)", () => {
       maxBufferedBytes: 1_000_000,
       chat: {
         runner,
-        host: { start: (_meeting, chatId) => void started.push(chatId) },
+        host: {
+          start: (_meeting, chatId, attach) => {
+            started.push(chatId);
+            attaches.set(chatId, attach);
+          },
+        },
         chats,
         messages,
         hub: chatHub,
@@ -160,6 +166,25 @@ run("chat API (postgres)", () => {
     const chatId = await newChat();
     expect(started).toContain(chatId);
     expect(await list(chatId)).toEqual({ messages: [], head: 0 });
+  });
+
+  test("a chat created through the API reads the transcript from now on, not from the start", async () => {
+    const chatId = await newChat();
+    expect(attaches.get(chatId)).toEqual({ kind: "tail", tail: 0 });
+  });
+
+  test("a meeting's chats are listed oldest first, and an unknown meeting is not found", async () => {
+    const first = await newChat();
+    const second = await newChat();
+    const response = await fetch(`${http}/meetings/${meetingId}/chats`);
+    expect(response.status).toBe(200);
+    const { chats: rows } = (await response.json()) as { chats: { id: string; meetingId: string; title: string }[] };
+    const ids = rows.map((row) => row.id);
+    expect(ids.indexOf(first)).toBeGreaterThanOrEqual(0);
+    expect(ids.indexOf(first)).toBeLessThan(ids.indexOf(second));
+    expect(rows.find((row) => row.id === first)).toMatchObject({ meetingId, title: "api" });
+    expect((await fetch(`${http}/meetings/${id()}/chats`)).status).toBe(404);
+    expect((await fetch(`${http}/meetings/nope/chats`)).status).toBe(404);
   });
 
   test("a posted message is accepted, answered, and listed in seq order", async () => {
