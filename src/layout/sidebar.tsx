@@ -15,7 +15,8 @@ import {
     useSidebar,
 } from '@/components/ui/sidebar';
 import { Link, useLocation } from '@tanstack/react-router';
-import { IconChevronRight, IconHome, IconRobot, IconSettings, IconMicrophone } from '@tabler/icons-react';
+import { IconChevronRight, IconHome, IconRobot, IconSettings, IconMicrophone, IconUsersGroup } from '@tabler/icons-react';
+import { useMeetings } from '@/lib/transcript-client';
 import { cn } from '@/lib/utils';
 import { SETTINGS_BACK, SETTINGS_NAV, type SettingsNavGroup } from '@/lib/settings-nav';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -111,6 +112,7 @@ function SettingsNav({ pathname }: { pathname: string }) {
 export function AppSidebar() {
     const { pathname } = useLocation();
     const inSettings = pathname.startsWith('/settings');
+    const { runningHere } = useMeetings();
 
     return (
         <Sidebar
@@ -133,6 +135,24 @@ export function AppSidebar() {
                                 <Link to="/">
                                     <IconHome className="size-2" />
                                     Home
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton
+                                asChild
+                                isActive={pathname === '/meetings'}
+                                className="rounded-lg text-[10px] font-semibold tracking-wide text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                            >
+                                <Link to="/meetings">
+                                    <IconUsersGroup className="size-2" />
+                                    Meetings
+                                    {runningHere && (
+                                        <span
+                                            className="ml-auto size-1.5 animate-pulse rounded-full bg-emerald-500"
+                                            title="A meeting is live"
+                                        />
+                                    )}
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>

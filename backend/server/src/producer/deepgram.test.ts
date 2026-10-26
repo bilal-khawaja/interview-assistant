@@ -144,6 +144,13 @@ describe("deepgramUrl", () => {
     expect(url.searchParams.get("diarize")).toBe("true");
     expect(url.searchParams.get("interim_results")).toBe("false");
   });
+
+  test("declares headerless PCM when asked, so a reconnect can resume mid-stream", () => {
+    const url = new URL(deepgramUrl({ apiKey: "k", pcm: { sampleRate: 16_000 } }));
+    expect(url.searchParams.get("encoding")).toBe("linear16");
+    expect(url.searchParams.get("sample_rate")).toBe("16000");
+    expect(url.searchParams.get("channels")).toBe("1");
+  });
 });
 
 describe("AsyncQueue", () => {

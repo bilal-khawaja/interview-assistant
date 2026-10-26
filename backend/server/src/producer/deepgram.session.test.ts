@@ -97,7 +97,11 @@ describe("transcribeAudio reconnect", () => {
     const { sockets, options } = harness();
     const abort = new AbortController();
     const total = 6;
-    setTimeout(() => sockets[0]!.result("before", 0, 1), 15);
+    // Not a fixed delay: Windows timers tick at ~15 ms, so the socket may open after any guess.
+    void (async () => {
+      while (sockets[0]?.readyState !== 1) await Bun.sleep(1);
+      sockets[0].result("before", 0, 1);
+    })();
 
     const out = await collect(
       transcribeAudio(options, chunks(total, 25), abort.signal, 1_000),

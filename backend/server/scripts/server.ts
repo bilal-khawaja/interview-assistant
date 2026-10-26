@@ -18,6 +18,7 @@ import { createChatAgent, createSummarizerAgent } from "../src/mastra/agents";
 import { endOrphanedMeetings, startOrphanSweeper } from "../src/log/sweep";
 import { PgWakeBridge, WakeHub } from "../src/log/wake";
 import { createApp } from "../src/server/app";
+import { MeetingController } from "../src/server/meeting-controller";
 
 const { db, sql, close } = createDb();
 const sweepDeps = {
@@ -66,8 +67,21 @@ const host = new ChatHost({
 await runner.recover();
 for (const chat of await chats.listConversational()) host.start(chat.meetingId, chat.id);
 
+const meetings = new MeetingRepository(db);
+const meetingController = new MeetingController({
+  sql,
+  meetings,
+  segments,
+  chats,
+  runner,
+  host,
+  deepgramApiKey: env.DEEPGRAM_API_KEY,
+  spoolDir: "spool",
+});
+
 const app = createApp({
-  meetings: new MeetingRepository(db),
+  meetings,
+  meetingApi: meetingController,
   segments,
   participants: new MeetingParticipantRepository(db),
   hub,
@@ -89,6 +103,7 @@ console.log(`SERVER pid=${process.pid} listening on http://localhost:${server.po
 
 const shutdown = async () => {
   stopSweeper();
+  await meetingController.shutdown();
   await server.stop(true);
   await host.stop();
   await chatBridge.stop();

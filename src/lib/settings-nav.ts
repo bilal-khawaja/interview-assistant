@@ -9,6 +9,7 @@ import {
     IconMessageCode,
     IconMicrophone,
     IconPlug,
+    IconServer,
     IconScissors,
     IconUserShield,
     IconVectorTriangle,
@@ -51,6 +52,7 @@ export const SETTINGS_NAV: SettingsNavGroup[] = [
             { label: 'UI Preferences', to: '/settings/customization/ui', icon: IconAdjustments },
             { label: 'Chat', to: '/settings/customization/chat', icon: IconMessage },
             { label: 'System Prompt', to: '/settings/customization/system-prompt', icon: IconMessageCode },
+            { label: 'Meetings Backend', to: '/settings/customization/backend', icon: IconServer },
         ],
     },
     {

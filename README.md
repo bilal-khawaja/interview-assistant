@@ -67,6 +67,28 @@ npm start
 
 This launches the Electron app with HMR enabled.
 
+#### Meeting transcripts
+
+The `/meetings` page needs the transcript backend in `backend/server`. Start things in this
+order; no separate producer or consumer process is needed, the server runs both per meeting.
+
+```bash
+# 1. Postgres (docker container with pgvector, port 5433 in backend/server/.env)
+docker start pgvector-db
+
+# 2. Backend (needs DATABASE_URL and DEEPGRAM_API_KEY in backend/server/.env)
+cd backend/server
+bun install
+bun run db:migrate
+bun run server        # http://localhost:3000, check /healthz
+
+# 3. App (repo root)
+npm start
+```
+
+The backend URL can be changed in Settings → Customization → Backend. Quitting the app ends a
+meeting it started; minimizing or hiding the window does not.
+
 ### Build
 
 ```bash

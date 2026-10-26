@@ -3,6 +3,7 @@ import { createClient as createInvokeClient, createEventHandlers } from '@egoist
 import type { AppRouter } from '../main';
 import type { AiChatRendererHandlers } from '../ai/controllers/ai-chat.handlers';
 import type { WindowRendererHandlers } from '../window/window.handlers';
+import type { TranscriptRendererHandlers } from '../transcript/controllers/transcript.handlers';
 
 /** react-query-backed client: `.useMutation()` / `.useQuery()` per procedure. */
 export const tipcClient = createQueryClient<AppRouter>({ ipcInvoke: window.ipc.invoke });
@@ -16,6 +17,11 @@ export const rendererHandlers = createEventHandlers<AiChatRendererHandlers>({
 });
 
 export const windowHandlers = createEventHandlers<WindowRendererHandlers>({
+  on: window.ipc.on,
+  send: window.ipc.send,
+});
+
+export const transcriptHandlers = createEventHandlers<TranscriptRendererHandlers>({
   on: window.ipc.on,
   send: window.ipc.send,
 });

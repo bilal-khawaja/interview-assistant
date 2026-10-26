@@ -31,6 +31,11 @@ export class MeetingRepository extends MutableRepository<typeof meetings> {
     return rows[0] ?? null;
   }
 
+  /** Newest first. */
+  list(limit = 50): Promise<Meeting[]> {
+    return this.findMany({ orderBy: desc(meetings.createdAt), limit });
+  }
+
   async touchHeartbeat(id: string, at: Date = new Date()): Promise<void> {
     await this.updateWhere(eq(meetings.id, id), { producerHeartbeatAt: at });
   }

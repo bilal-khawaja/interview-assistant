@@ -9,6 +9,7 @@ import type { ChatRepository } from "../db/repositories/meeting.repository";
 import type { ChatMessage } from "../db/schema";
 import { INBOX_MODES } from "../db/schema";
 import { runChatStream, messageFrame, type ChatStreamDeps } from "./chat-stream";
+import type { StreamVariables } from "./app";
 import { sinkFor } from "./sink";
 
 export type ChatApiDeps = ChatStreamDeps & {
@@ -33,7 +34,7 @@ const postBody = z.object({
 
 const createBody = z.object({ title: z.string().trim().max(200).default("") });
 
-type ChatVariables = { meetingId: string; chatId: string; after: number };
+type ChatVariables = StreamVariables;
 
 /** Mounts the chat API on an app whose Variables include meetingId, chatId and after. */
 export function mountChatRoutes(

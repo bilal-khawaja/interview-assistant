@@ -15,6 +15,11 @@ export type DeepgramOptions = {
   apiKey: string;
   model?: string;
   language?: string;
+  /**
+   * Headerless PCM input (e.g. a microphone). Without it Deepgram detects a container, which a
+   * reconnect cannot resume mid-stream. Set bytesPerSecond to sampleRate * 2 * channels too.
+   */
+  pcm?: { sampleRate: number; channels?: number };
   diarize?: boolean;
   reconnect?: Partial<ReconnectPolicy>;
   maxBuffered?: number;
@@ -82,7 +87,12 @@ export function deepgramUrl(options: DeepgramOptions): string {
     smart_format: "true",
     interim_results: "false",
   });
-  return `wss://api.deepgram.com/v1/listen?${params}`;
+  if (options.pcm) {
+    params.set("encoding", "linear16");
+    params.set("sample_rate", String(options.pcm.sampleRate));
+    params.set("channels", String(options.pcm.channels ?? 1));
+  }
+  return `${process.env.DEEPGRAM_WS_URL?.trim() || "wss://api.deepgram.com/v1/listen"}?${params}`;
 }
 
 /**

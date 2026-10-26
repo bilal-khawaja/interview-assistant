@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { upgradeWebSocket } from "hono/bun";
 import type { MeetingRepository } from "../db/repositories/meeting.repository";
 import { mountChatRoutes, type ChatApiDeps } from "./chat-routes";
+import { mountMeetingRoutes, type MeetingApiDeps } from "./meeting-routes";
 import { sinkFor } from "./sink";
 import { runTranscriptStream, type StreamDeps } from "./transcript-stream";
 
@@ -9,9 +10,11 @@ export type AppDeps = StreamDeps & {
   meetings: Pick<MeetingRepository, "findById">;
   /** Without it the server only streams transcripts. */
   chat?: ChatApiDeps;
+  /** Without it meetings can only be started outside the server (the producer script). */
+  meetingApi?: MeetingApiDeps;
 };
 
-type StreamVariables = { meetingId: string; chatId: string; after: number };
+export type StreamVariables = { meetingId: string; chatId: string; after: number; audioMeetingId: string };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -55,6 +58,8 @@ export function createApp(deps: AppDeps) {
       };
     }),
   );
+
+  if (deps.meetingApi) mountMeetingRoutes(app, deps.meetingApi);
 
   if (deps.chat) {
     mountChatRoutes(app, deps.chat, async (id) => (await deps.meetings.findById(id)) !== null);

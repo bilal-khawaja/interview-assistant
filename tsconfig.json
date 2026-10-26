@@ -34,5 +34,9 @@
   "include": [
     "src",
     "forge.env.d.ts"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/transcript/testing"
   ]
 }

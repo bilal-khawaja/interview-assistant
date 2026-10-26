@@ -22,6 +22,10 @@ import { createWindowRouter } from './window/window.router';
 import { getRendererHandlers } from '@egoist/tipc/main';
 import type { WindowRendererHandlers } from './window/window.handlers';
 import { createUpdateRouter } from './window/window.update.router';
+import { BackendApi } from './transcript/services/backend-api.client';
+import { MeetingService } from './transcript/services/meeting.service';
+import { createTranscriptRouter } from './transcript/controllers/transcript.router';
+import { DEFAULT_BACKEND_URL } from './transcript/backend-url';
 import { createUpdateWindow, createPillWindow, positionPillTopCenter, PILL_WIDTH } from './window/window.settings';
 
 app.setName('System Container');
@@ -60,6 +64,8 @@ const createWindow = () => {
 
 const aiChatService = new AiChatService(new OpenaiChatAdapterFactory());
 const aiRealtimeService = new AiRealtimeService(new OpenaiRealtimeTokenAdapterFactory());
+// The renderer overrides the URL from its saved setting at startup (transcriptConfigure).
+const meetingService = new MeetingService(new BackendApi(process.env.BACKEND_URL?.trim() || DEFAULT_BACKEND_URL));
 
 // Single source of truth for click-through state, shared between the
 // settings toggle (renderer -> tipc) and the Ctrl+Shift+X shortcut, so
@@ -130,6 +136,7 @@ const router = {
   },
   window: createWindowRouter(applyClickThrough, applyOpacity, resizePill, hidePill),
   update: createUpdateRouter(() => updateWindow),
+  transcript: createTranscriptRouter(meetingService),
   // upgrade: createUpgradeRouter(() => upgradeWindow),
 };
 registerIpcMain(router);
@@ -228,6 +235,17 @@ app.whenReady().then(async () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+});
+
+// Quitting ends a meeting this app started. Minimizing or hiding a window (stealth toggle,
+// pill) never reaches here: only a real quit does. The server drains queued segments before
+// answering, so quit is held until that is done (or times out).
+let quitAfterMeetingEnd = false;
+app.on('before-quit', (event) => {
+  if (quitAfterMeetingEnd || !meetingService.hasOwnedLiveMeeting) return;
+  event.preventDefault();
+  quitAfterMeetingEnd = true;
+  void meetingService.endOwnedMeeting().finally(() => app.quit());
 });
 
 app.on('window-all-closed', () => {
