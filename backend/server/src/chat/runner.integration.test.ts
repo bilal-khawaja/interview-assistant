@@ -1,3 +1,4 @@
+import { testOwner } from "../auth/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { BUDGET_EXHAUSTED_NOTICE, TURN_FAILED_NOTICE } from "../constants/chat";
@@ -78,7 +79,7 @@ run("ChatRunner", () => {
   });
 
   beforeAll(async () => {
-    meetingId = (await new MeetingRepository(db).create("chat runner test")).id;
+    meetingId = (await new MeetingRepository(db).create("chat runner test", await testOwner(db))).id;
   });
 
   afterAll(async () => {

@@ -365,3 +365,31 @@ describe('MeetingChatStore', () => {
     expect(chat('c2')).toBe(before);
   });
 });
+
+describe('MeetingChatStore account change', () => {
+  test('reset forgets every open chat and its unsent messages', async () => {
+    await store.open('m1', 'c1');
+    await store.open('m1', 'c2');
+    api.deliver('c1', message(1, 'user', 'followup', 'private question'));
+    store.reset();
+    expect(store.getState().chats).toEqual({});
+  });
+
+  test('a repeat of a message from before the reset is not mistaken for new once the chat is opened again', async () => {
+    await store.open('m1', 'c1');
+    api.deliver('c1', message(1, 'assistant', 'answer', 'first'));
+    store.reset();
+    await store.open('m1', 'c1');
+    api.deliver('c1', message(1, 'assistant', 'answer', 'first again'));
+    expect(texts()).toEqual(['first again']);
+  });
+
+  test('the store keeps listening after a reset, so the next account\'s chats work', async () => {
+    await store.open('m1', 'c1');
+    store.reset();
+    await store.open('m2', 'c9');
+    api.deliver('c9', message(1, 'assistant', 'answer', 'hello'));
+    expect(texts('c9')).toEqual(['hello']);
+    expect(api.listens).toBe(1);
+  });
+});

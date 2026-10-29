@@ -1,3 +1,4 @@
+import { testOwner, testOwnerAuth } from "../auth/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { websocket } from "hono/bun";
@@ -119,7 +120,7 @@ run("chat API (postgres)", () => {
   };
 
   beforeAll(async () => {
-    meetingId = (await meetings.create("chat api test")).id;
+    meetingId = (await meetings.create("chat api test", await testOwner(db))).id;
     await bridge.start();
     const runner = new ChatRunner({
       db,
@@ -128,6 +129,7 @@ run("chat API (postgres)", () => {
       onError: (e) => errors.push(e),
     });
     const app = createApp({
+      auth: testOwnerAuth(),
       meetings,
       segments: new SegmentRepository(db),
       participants: new MeetingParticipantRepository(db),
@@ -236,7 +238,7 @@ run("chat API (postgres)", () => {
   });
 
   test("a chat cannot be reached through another meeting", async () => {
-    const other = (await meetings.create("other")).id;
+    const other = (await meetings.create("other", await testOwner(db))).id;
     try {
       const chatId = await newChat();
       expect((await post(chatId, { text: "x" }, other)).status).toBe(404);

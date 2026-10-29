@@ -93,6 +93,15 @@ function newMeetingTab(meetingId: string, chatId: string, title: string): ChatTa
   };
 }
 
+const TABS_KEY = 'ai.chatTabs';
+
+/**
+ * Whose tabs are on screen. Tabs are saved under `ai.chatTabs:<userId>`, so two accounts on
+ * one device each get their own. With nobody signed in nothing is read or written.
+ */
+let scopeUserId: string | null = null;
+const scopedKey = (): string | null => (scopeUserId ? `${TABS_KEY}:${scopeUserId}` : null);
+
 let isAnyStreaming = false;
 let pendingWrite: { key: string; value: string } | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -100,10 +109,19 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 const DEBOUNCE_MS = 300;
 
 const throttledStorage: StateStorage = {
-  getItem: (name) => localStorage.getItem(name),
-  removeItem: (name) => localStorage.removeItem(name),
-  setItem: (name, value) => {
-    pendingWrite = { key: name, value };
+  getItem: () => {
+    const key = scopedKey();
+    return key ? localStorage.getItem(key) : null;
+  },
+  removeItem: () => {
+    const key = scopedKey();
+    if (key) localStorage.removeItem(key);
+  },
+  setItem: (_name, value) => {
+    // The key is fixed when the write is queued, so a later account switch cannot redirect it.
+    const key = scopedKey();
+    if (!key) return;
+    pendingWrite = { key, value };
     if (isAnyStreaming) return;
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(flushPendingWrite, DEBOUNCE_MS);
@@ -122,6 +140,8 @@ function flushPendingWrite() {
 }
 
 type PersistedChatTabsState = { tabs: ChatTab[]; activeTabId: string | null };
+
+const EMPTY_TABS = { tabs: [] as ChatTab[], activeTabId: null, pinnedTabId: null };
 
 export const useChatTabsStore = create<ChatTabsState>()(
   persist<ChatTabsState, [], [], PersistedChatTabsState>(
@@ -265,7 +285,9 @@ export const useChatTabsStore = create<ChatTabsState>()(
       },
     }),
     {
-      name: 'ai.chatTabs',
+      name: TABS_KEY,
+      // Nothing is read until an account is known (switchChatTabsUser).
+      skipHydration: true,
       storage: {
         getItem: (name) => {
           const value = throttledStorage.getItem(name) as string | null;
@@ -283,3 +305,35 @@ export const useChatTabsStore = create<ChatTabsState>()(
 );
 
 export const DEFAULT_TAB_TITLE = DEFAULT_TITLE;
+
+/**
+ * Before accounts existed, tabs were saved under one shared key. The first account to sign in
+ * on this device takes them over, and the shared copy is removed so no later account sees it.
+ */
+function claimLegacyTabs(userId: string): void {
+  const legacy = localStorage.getItem(TABS_KEY);
+  if (legacy === null) return;
+  const key = `${TABS_KEY}:${userId}`;
+  if (localStorage.getItem(key) === null) localStorage.setItem(key, legacy);
+  localStorage.removeItem(TABS_KEY);
+}
+
+/**
+ * Shows this account's saved tabs (or none when signed out). The previous account's tabs are
+ * saved first, then cleared from memory, so they can neither be lost nor leak.
+ */
+export function switchChatTabsUser(userId: string | null): void {
+  flushPendingWrite();
+  // Clear with no account selected, so the empty state is not saved over anyone's tabs.
+  scopeUserId = null;
+  isAnyStreaming = false;
+  useChatTabsStore.setState({ ...EMPTY_TABS });
+  if (userId === null) return;
+  try {
+    claimLegacyTabs(userId);
+  } catch {
+    // storage unavailable: start with no saved tabs
+  }
+  scopeUserId = userId;
+  void useChatTabsStore.persist.rehydrate();
+}

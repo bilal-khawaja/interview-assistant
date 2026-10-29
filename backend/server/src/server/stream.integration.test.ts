@@ -1,3 +1,4 @@
+import { testOwner, testOwnerAuth } from "../auth/testing";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { inArray } from "drizzle-orm";
 import { websocket } from "hono/bun";
@@ -88,7 +89,7 @@ run("transcript websocket (postgres)", () => {
   let base = "";
 
   const newMeeting = async () => {
-    const meeting = await meetings.create("ws");
+    const meeting = await meetings.create("ws", await testOwner(db));
     created.push(meeting.id);
     return meeting;
   };
@@ -106,6 +107,7 @@ run("transcript websocket (postgres)", () => {
   beforeAll(async () => {
     await bridge.start();
     const app = createApp({
+      auth: testOwnerAuth(),
       meetings,
       segments,
       participants,

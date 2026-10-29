@@ -42,6 +42,11 @@ ${backend?.logs ?? ''}
 const deepgram = new FakeDeepgram();
 let backend: BackendProcess;
 
+/** The account every scenario runs as. The backend needs a signed-in user for everything. */
+let token = '';
+const authed = (url: string, init: RequestInit = {}) =>
+  fetch(url, { ...init, headers: { ...init.headers, authorization: `Bearer ${token}` } });
+
 /** One app window: a service plus everything it was told. */
 class Window {
   readonly events: TranscriptEvent[] = [];
@@ -49,7 +54,9 @@ class Window {
   private mic: ReturnType<typeof setInterval> | null = null;
 
   constructor(url: string) {
-    this.service = new MeetingService(new BackendApi(url), {
+    const api = new BackendApi(url);
+    api.setToken(token);
+    this.service = new MeetingService(api, {
       pollMs: 300,
       drainMs: 800,
       drainMaxMs: 8_000,
@@ -108,7 +115,9 @@ class Window {
 /** The log as the server holds it: a fresh connection replaying from the first segment. */
 async function replay(meetingId: string, base = backend.url): Promise<number[]> {
   const seqs: number[] = [];
-  const socket = new WebSocket(`${base.replace(/^http/, 'ws')}/meetings/${meetingId}/stream?after=0`);
+  const socket = new WebSocket(`${base.replace(/^http/, 'ws')}/meetings/${meetingId}/stream?after=0`, {
+    headers: { authorization: `Bearer ${token}` },
+  } as unknown as string[]);
   let lastFrame = Date.now();
   socket.onmessage = (event) => {
     lastFrame = Date.now();
@@ -135,7 +144,7 @@ function expectCleanLog(segments: TranscriptSegment[]): void {
 }
 
 async function meetingStatus(id: string): Promise<Meeting['status']> {
-  const response = await fetch(`${backend.url}/meetings/${id}`);
+  const response = await authed(`${backend.url}/meetings/${id}`);
   return ((await response.json()) as Meeting).status;
 }
 
@@ -157,6 +166,13 @@ beforeAll(async () => {
   await deepgram.start();
   backend = new BackendProcess(BACKEND_DIR, { DEEPGRAM_API_KEY: 'matrix', DEEPGRAM_WS_URL: deepgram.url });
   await backend.start();
+  const signUp = new BackendApi(backend.url);
+  const account = await signUp.signUp({
+    name: 'Matrix',
+    email: `matrix-${Date.now()}@example.com`,
+    password: 'matrix-password-123',
+  });
+  token = account.token;
 }, 60_000);
 
 afterEach(async () => {
@@ -166,11 +182,11 @@ afterEach(async () => {
   if (!enabled) return;
   deepgram.refuse = false;
   // Leave nothing running for the next scenario.
-  const running = (await (await fetch(`${backend.url}/meetings`).catch(() => null))?.json().catch(() => null)) as
+  const running = (await (await authed(`${backend.url}/meetings`).catch(() => null))?.json().catch(() => null)) as
     | { meetings: Meeting[] }
     | null;
   for (const meeting of running?.meetings ?? []) {
-    if (meeting.status !== 'ended') await fetch(`${backend.url}/meetings/${meeting.id}/end`, { method: 'POST' }).catch(() => undefined);
+    if (meeting.status !== 'ended') await authed(`${backend.url}/meetings/${meeting.id}/end`, { method: 'POST' }).catch(() => undefined);
   }
 }, 60_000);
 
@@ -281,7 +297,7 @@ for (const source of SOURCES) {
       // Quitting from a window that only watches must not end someone else's meeting.
       await second.service.endOwnedMeeting();
       expect(await meetingStatus(meeting.id)).toBe('live');
-      await fetch(`${backend.url}/meetings/${meeting.id}/end`, { method: 'POST' });
+      await authed(`${backend.url}/meetings/${meeting.id}/end`, { method: 'POST' });
     }, 120_000);
 
     test('quitting the app that started the meeting ends it on the server', async () => {
@@ -323,7 +339,7 @@ run('failure matrix · microphone', () => {
     try {
       await until(() => window.speech().length >= 2, 30_000, 'two segments');
     } catch (error) {
-      console.log('DIAG', JSON.stringify({ statuses: window.statuses, segments: window.segments.length, meeting: await meetingStatus(meeting.id).catch((e) => String(e)), newConns: deepgram.connections - conns, newSecs: deepgram.audioSeconds - secs, events: window.events.map((e) => e.type), direct: await fetch(`${backend.directUrl}/meetings/${meeting.id}`).then((r) => r.json()).catch((e) => String(e)), directSegments: await replay(meeting.id, backend.directUrl).then((q) => q.length).catch((e) => String(e)) }));
+      console.log('DIAG', JSON.stringify({ statuses: window.statuses, segments: window.segments.length, meeting: await meetingStatus(meeting.id).catch((e) => String(e)), newConns: deepgram.connections - conns, newSecs: deepgram.audioSeconds - secs, events: window.events.map((e) => e.type), direct: await authed(`${backend.directUrl}/meetings/${meeting.id}`).then((r) => r.json()).catch((e) => String(e)), directSegments: await replay(meeting.id, backend.directUrl).then((q) => q.length).catch((e) => String(e)) }));
       throw error;
     }
     const before = window.speech().length;
@@ -335,6 +351,39 @@ run('failure matrix · microphone', () => {
     await window.service.end(meeting.id);
     await until(() => window.lastStatus === 'ended', 20_000, 'ended status');
     await expectMatchesServer(window, meeting.id);
+  }, 120_000);
+});
+
+run('failure matrix · second device', () => {
+  test('a second device on the same account follows a live meeting started elsewhere: same transcript, no audio, and it cannot end it by leaving', async () => {
+    const first = open();
+    const conns = deepgram.connections;
+    const meeting = await first.begin('live', 'matrix second device');
+    await until(() => first.speech().length >= 2, 30_000, 'two segments on the first device');
+    expect(deepgram.connections - conns).toBe(1);
+
+    const second = open();
+    await second.service.subscribe(meeting.id);
+    await until(() => second.speech().length >= first.speech().length, 30_000, 'the second device to catch up');
+    expect(second.service.activeIsOwned).toBe(false);
+    expect(second.service.sendAudio(new Uint8Array(3200))).toBe(false);
+
+    // It lists the chat the meeting started with, as it would for "Open chat".
+    const chats = await second.service.api.listChats(meeting.id);
+    expect(chats.length).toBeGreaterThanOrEqual(1);
+    expect(chats.every((chat) => chat.meetingId === meeting.id)).toBe(true);
+
+    // Following added no transcription connection, and leaving does not end the meeting.
+    await second.service.endOwnedMeeting();
+    second.service.unsubscribe();
+    expect(deepgram.connections - conns).toBe(1);
+    expect(await meetingStatus(meeting.id)).toBe('live');
+    const before = first.speech().length;
+    await until(() => first.speech().length >= before + 2, 30_000, 'the first device still hearing speech');
+
+    await first.service.end(meeting.id);
+    await until(() => first.lastStatus === 'ended', 20_000, 'ended status');
+    await expectMatchesServer(first, meeting.id);
   }, 120_000);
 });
 
@@ -351,7 +400,7 @@ const container = process.env.PG_CONTAINER;
     } finally {
       await dockerCommand('start', container!);
     }
-    await until(async () => (await fetch(`${backend.url}/healthz`).catch(() => null))?.ok === true, 60_000, 'backend healthz');
+    await until(async () => (await authed(`${backend.url}/healthz`).catch(() => null))?.ok === true, 60_000, 'backend healthz');
     const before = window.speech().length;
 
     await until(() => window.speech().length >= before + 3, 90_000, 'speech after the database returned');

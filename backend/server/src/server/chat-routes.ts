@@ -1,6 +1,7 @@
 import type { Hono } from "hono";
 import { upgradeWebSocket } from "hono/bun";
 import { z } from "zod";
+import { currentUserId } from "../auth/routes";
 import type { ChatHost } from "../chat/host";
 import type { ChatRunner } from "../chat/runner";
 import { InboxIdConflictError } from "../db/repositories/chat-inbox.repository";
@@ -40,11 +41,14 @@ type ChatVariables = StreamVariables;
 export function mountChatRoutes(
   app: Hono<{ Variables: ChatVariables & Record<string, unknown> }>,
   deps: ChatApiDeps,
-  meetingExists: (id: string) => Promise<boolean>,
+  /** True only for a meeting that exists and belongs to the user. */
+  ownsMeeting: (id: string, userId: string) => Promise<boolean>,
 ): void {
   app.post("/meetings/:id/chats", async (c) => {
     const meetingId = c.req.param("id");
-    if (!UUID.test(meetingId) || !(await meetingExists(meetingId))) return c.json({ error: "not found" }, 404);
+    if (!UUID.test(meetingId) || !(await ownsMeeting(meetingId, currentUserId(c)))) {
+      return c.json({ error: "not found" }, 404);
+    }
     const body = createBody.safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) return c.json({ error: "invalid body", issues: body.error.issues }, 400);
     const chat = await deps.chats.create(meetingId, body.data.title);
@@ -56,12 +60,14 @@ export function mountChatRoutes(
 
   app.get("/meetings/:id/chats", async (c) => {
     const meetingId = c.req.param("id");
-    if (!UUID.test(meetingId) || !(await meetingExists(meetingId))) return c.json({ error: "not found" }, 404);
+    if (!UUID.test(meetingId) || !(await ownsMeeting(meetingId, currentUserId(c)))) {
+      return c.json({ error: "not found" }, 404);
+    }
     return c.json({ chats: (await deps.chats.listByMeeting(meetingId)).map(chatJson) });
   });
 
   app.post("/meetings/:id/chats/:chatId/messages", async (c) => {
-    const found = await findChat(c.req.param("id"), c.req.param("chatId"));
+    const found = await findChat(c.req.param("id"), c.req.param("chatId"), currentUserId(c));
     if (!found) return c.json({ error: "not found" }, 404);
     const body = postBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: "invalid body", issues: body.error.issues }, 400);
@@ -77,7 +83,7 @@ export function mountChatRoutes(
   });
 
   app.get("/meetings/:id/chats/:chatId/messages", async (c) => {
-    const found = await findChat(c.req.param("id"), c.req.param("chatId"));
+    const found = await findChat(c.req.param("id"), c.req.param("chatId"), currentUserId(c));
     if (!found) return c.json({ error: "not found" }, 404);
     const after = parseCount(c.req.query("after"), 0);
     const limit = parseCount(c.req.query("limit"), DEFAULT_PAGE);
@@ -94,7 +100,7 @@ export function mountChatRoutes(
   app.get(
     "/meetings/:id/chats/:chatId/stream",
     async (c, next) => {
-      const found = await findChat(c.req.param("id"), c.req.param("chatId"));
+      const found = await findChat(c.req.param("id"), c.req.param("chatId"), currentUserId(c));
       if (!found) return c.json({ error: "not found" }, 404);
       const after = parseCount(c.req.query("after"), 0);
       if (after === null) return c.json({ error: "after must be a non-negative integer" }, 400);
@@ -122,8 +128,9 @@ export function mountChatRoutes(
     }),
   );
 
-  async function findChat(meetingId: string, chatId: string) {
+  async function findChat(meetingId: string, chatId: string, userId: string) {
     if (!UUID.test(meetingId) || !UUID.test(chatId)) return null;
+    if (!(await ownsMeeting(meetingId, userId))) return null;
     const chat = await deps.chats.findInMeeting(meetingId, chatId);
     return chat ? { meetingId, chatId } : null;
   }

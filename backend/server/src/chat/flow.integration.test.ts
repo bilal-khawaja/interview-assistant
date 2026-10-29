@@ -1,3 +1,4 @@
+import { testOwner } from "../auth/testing";
 import { eq, sql as rawSql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createDb, type DbClient } from "../db/client";
@@ -117,7 +118,7 @@ run("chat flow (postgres)", () => {
   };
 
   beforeAll(async () => {
-    meetingId = (await new MeetingRepository(db).create("chat flow test")).id;
+    meetingId = (await new MeetingRepository(db).create("chat flow test", await testOwner(db))).id;
   });
 
   afterAll(async () => {

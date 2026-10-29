@@ -1,3 +1,4 @@
+import { testOwner, testOwnerAuth } from "../auth/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { websocket } from "hono/bun";
@@ -82,12 +83,13 @@ run("chat across a real database stop and start", () => {
   };
 
   beforeAll(async () => {
-    meetingId = (await new MeetingRepository(db).create("outage test")).id;
+    meetingId = (await new MeetingRepository(db).create("outage test", await testOwner(db))).id;
     chatId = (await new ChatRepository(db).create(meetingId, "outage")).id;
     await bridge.start();
     const runner = new ChatRunner({ db, coordinator: new KeyedCoordinator(), agent: new StubChatAgent() });
     await runner.open(chatId);
     const app = createApp({
+      auth: testOwnerAuth(),
       meetings: new MeetingRepository(db),
       segments: new SegmentRepository(db),
       participants: new MeetingParticipantRepository(db),

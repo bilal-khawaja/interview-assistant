@@ -1,6 +1,7 @@
 import type { Hono } from "hono";
 import { upgradeWebSocket } from "hono/bun";
 import { z } from "zod";
+import { currentUserId } from "../auth/routes";
 import type { Meeting } from "../db/schema";
 import type { StreamVariables } from "./app";
 import {
@@ -55,13 +56,13 @@ export function mountMeetingRoutes(
     const raw = c.req.query("limit");
     const limit = raw === undefined ? 50 : /^\d{1,4}$/.test(raw) ? Number(raw) : 0;
     if (limit < 1 || limit > MAX_LIST) return c.json({ error: `limit must be 1 to ${MAX_LIST}` }, 400);
-    const meetings = await deps.list(limit);
+    const meetings = await deps.list(currentUserId(c), limit);
     return c.json({ meetings: meetings.map((m) => meetingJson(m, deps.sourceOf(m.id))) });
   });
 
   app.get("/meetings/:id", async (c) => {
     const id = c.req.param("id");
-    const meeting = UUID.test(id) ? await deps.get(id) : null;
+    const meeting = UUID.test(id) ? await deps.get(currentUserId(c), id) : null;
     if (!meeting) return c.json({ error: "not found" }, 404);
     return c.json(meetingJson(meeting, deps.sourceOf(id)));
   });
@@ -70,7 +71,7 @@ export function mountMeetingRoutes(
     const body = startBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: "invalid body", issues: body.error.issues }, 400);
     try {
-      const meeting = await deps.start(body.data);
+      const meeting = await deps.start(currentUserId(c), body.data);
       return c.json(meetingJson(meeting, body.data.source), 201);
     } catch (error) {
       if (error instanceof MeetingAlreadyLiveError) {
@@ -85,7 +86,7 @@ export function mountMeetingRoutes(
 
   app.post("/meetings/:id/end", async (c) => {
     const id = c.req.param("id");
-    const meeting = UUID.test(id) ? await deps.end(id) : null;
+    const meeting = UUID.test(id) ? await deps.end(currentUserId(c), id) : null;
     if (!meeting) return c.json({ error: "not found" }, 404);
     return c.json(meetingJson(meeting, deps.sourceOf(id)));
   });
@@ -94,7 +95,7 @@ export function mountMeetingRoutes(
     "/meetings/:id/audio",
     async (c, next) => {
       const id = c.req.param("id");
-      if (!UUID.test(id) || !(await deps.get(id))) return c.json({ error: "not found" }, 404);
+      if (!UUID.test(id) || !(await deps.get(currentUserId(c), id))) return c.json({ error: "not found" }, 404);
       if (!deps.audioInput(id)) return c.json({ error: "meeting is not taking live audio" }, 409);
       c.set("audioMeetingId", id);
       await next();

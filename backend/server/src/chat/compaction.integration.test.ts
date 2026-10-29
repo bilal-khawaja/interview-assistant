@@ -1,3 +1,4 @@
+import { testOwner } from "../auth/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createDb, type DbClient } from "../db/client";
@@ -38,7 +39,7 @@ run("ChatCompactor", () => {
   let meetingId: string;
 
   beforeAll(async () => {
-    meetingId = (await new MeetingRepository(db).create("compaction test")).id;
+    meetingId = (await new MeetingRepository(db).create("compaction test", await testOwner(db))).id;
   });
 
   afterAll(async () => {

@@ -10,7 +10,8 @@
     "start": "electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "test": "bun test ./src/transcript ./src/lib"
+    "test": "bun test ./src/transcript ./src/lib ./src/auth",
+    "device-sim": "bun run scripts/device-sim.ts"
   },
   "keywords": [],
   "author": {

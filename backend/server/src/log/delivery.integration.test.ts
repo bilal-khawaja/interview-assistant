@@ -1,3 +1,4 @@
+import { testOwner } from "../auth/testing";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { inArray } from "drizzle-orm";
 import { env } from "../env";
@@ -77,7 +78,7 @@ run("at-least-once delivery and dedupe (postgres)", () => {
   }
 
   const setup = async () => {
-    const meeting = await meetings.create("delivery");
+    const meeting = await meetings.create("delivery", await testOwner(db));
     created.push(meeting.id);
     const chat = await chats.create(meeting.id);
     const appender = await SegmentAppender.open({ sql, segments, retryBaseMs: 5 }, meeting.id);

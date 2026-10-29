@@ -11,9 +11,11 @@ Object.assign(globalThis, {
 });
 
 let useChatTabsStore: typeof import('./chat-tabs-store').useChatTabsStore;
+let switchChatTabsUser: typeof import('./chat-tabs-store').switchChatTabsUser;
 
 beforeAll(async () => {
-  ({ useChatTabsStore } = await import('./chat-tabs-store'));
+  ({ useChatTabsStore, switchChatTabsUser } = await import('./chat-tabs-store'));
+  switchChatTabsUser('u1'); // tabs are saved per account
 });
 
 beforeEach(() => {
@@ -65,7 +67,7 @@ describe('meeting tabs', () => {
   test('a meeting tab is saved with its ids so it can be reopened after a restart', async () => {
     state().createMeetingTab('m1', 'c1', 'saved');
     await new Promise((resolve) => setTimeout(resolve, 400)); // the store debounces its writes
-    const stored = JSON.parse(saved.get('ai.chatTabs') ?? 'null') as {
+    const stored = JSON.parse(saved.get('ai.chatTabs:u1') ?? 'null') as {
       state: { tabs: { type: string; meetingId?: string; chatId?: string; title: string }[] };
     };
     expect(stored.state.tabs.find((t) => t.type === 'meeting')).toMatchObject({
@@ -73,5 +75,93 @@ describe('meeting tabs', () => {
       chatId: 'c1',
       title: 'saved',
     });
+  });
+});
+
+describe('tabs per account', () => {
+  const stored = (user: string) =>
+    JSON.parse(saved.get(`ai.chatTabs:${user}`) ?? 'null') as { state: { tabs: { title: string }[] } } | null;
+  const titles = () => state().tabs.map((t) => t.title);
+
+  beforeEach(() => {
+    for (const key of [...saved.keys()]) saved.delete(key);
+    switchChatTabsUser(null);
+  });
+
+  test('each account gets its own tabs back after another account used the device', () => {
+    switchChatTabsUser('ada');
+    state().createMeetingTab('m1', 'c1', 'ada chat');
+    switchChatTabsUser('bo');
+    expect(state().tabs).toEqual([]);
+    state().createMeetingTab('m2', 'c2', 'bo chat');
+
+    switchChatTabsUser('ada');
+    expect(titles()).toEqual(['ada chat']);
+    switchChatTabsUser('bo');
+    expect(titles()).toEqual(['bo chat']);
+  });
+
+  test('the previous account\'s tabs are saved under that account even if the write was still queued', () => {
+    switchChatTabsUser('ada');
+    state().createMeetingTab('m1', 'c1', 'queued');
+    switchChatTabsUser('bo'); // switches before the debounced write would have run
+    expect(stored('ada')?.state.tabs.map((t) => t.title)).toEqual(['queued']);
+    expect(stored('bo')?.state.tabs ?? []).toEqual([]);
+  });
+
+  test('signed out there are no tabs, and nothing is written for anyone', () => {
+    switchChatTabsUser('ada');
+    state().createMeetingTab('m1', 'c1', 'mine');
+    switchChatTabsUser(null);
+    expect(state().tabs).toEqual([]);
+    state().createTab('some-model'); // e.g. a stray action while signed out
+    switchChatTabsUser('ada');
+    expect(titles()).toEqual(['mine']);
+    expect([...saved.keys()].filter((key) => !key.startsWith('ai.chatTabs:'))).toEqual([]);
+  });
+
+  test('the first account on a device inherits the tabs saved before accounts existed; later accounts do not', () => {
+    const legacy = {
+      state: {
+        tabs: [
+          {
+            id: 't1',
+            type: 'meeting',
+            title: 'old chat',
+            messages: [],
+            model: '',
+            streamingText: '',
+            streamingReasoning: '',
+            isStreaming: false,
+            error: null,
+            createdAt: 1,
+            meetingId: 'm1',
+            chatId: 'c1',
+          },
+        ],
+        activeTabId: 't1',
+      },
+      version: 0,
+    };
+    saved.set('ai.chatTabs', JSON.stringify(legacy));
+
+    switchChatTabsUser('first');
+    expect(titles()).toEqual(['old chat']);
+    expect(saved.has('ai.chatTabs')).toBe(false);
+
+    switchChatTabsUser('second');
+    expect(state().tabs).toEqual([]);
+    switchChatTabsUser('first');
+    expect(titles()).toEqual(['old chat']);
+  });
+
+  test('an account that already has saved tabs keeps them when the old shared copy is found', () => {
+    switchChatTabsUser('ada');
+    state().createMeetingTab('m1', 'c1', 'current');
+    switchChatTabsUser(null);
+    saved.set('ai.chatTabs', JSON.stringify({ state: { tabs: [], activeTabId: null }, version: 0 }));
+    switchChatTabsUser('ada');
+    expect(titles()).toEqual(['current']);
+    expect(saved.has('ai.chatTabs')).toBe(false);
   });
 });

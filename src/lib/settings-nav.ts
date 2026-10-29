@@ -10,6 +10,7 @@ import {
     IconMicrophone,
     IconPlug,
     IconServer,
+    IconUser,
     IconScissors,
     IconUserShield,
     IconVectorTriangle,
@@ -33,6 +34,10 @@ export type SettingsNavGroup = {
 export const SETTINGS_BACK = { label: 'Back', to: '/ai', icon: IconArrowLeft } satisfies SettingsNavItem;
 
 export const SETTINGS_NAV: SettingsNavGroup[] = [
+    {
+        label: 'Account',
+        items: [{ label: 'Profile', to: '/settings/account', icon: IconUser }],
+    },
     {
         label: 'AI Providers',
         icon: IconPlug,

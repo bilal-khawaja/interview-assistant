@@ -1,4 +1,5 @@
-import { check, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { check, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { user } from "./auth";
 import { oneOf } from "./helpers";
 
 export const MEETING_STATUSES = ["created", "live", "ended"] as const;
@@ -8,6 +9,10 @@ export const meetings = pgTable(
   "meetings",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    /** The owner. Chats, segments and messages hang off the meeting, so this covers all of them. */
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
     title: text("title").notNull().default(""),
     status: text("status", { enum: MEETING_STATUSES })
       .notNull()
@@ -21,6 +26,7 @@ export const meetings = pgTable(
   },
   (table) => [
     check("meetings_status_check", oneOf(table.status, MEETING_STATUSES)),
+    index("meetings_user_id_created_at_idx").on(table.userId, table.createdAt),
   ],
 );
 

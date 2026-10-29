@@ -15,8 +15,8 @@ export class MeetingRepository extends MutableRepository<typeof meetings> {
     super(db, meetings);
   }
 
-  create(title = ""): Promise<Meeting> {
-    return this.insertOne({ title });
+  create(title: string, userId: string): Promise<Meeting> {
+    return this.insertOne({ title, userId });
   }
 
   findById(id: string): Promise<Meeting | null> {
@@ -31,9 +31,14 @@ export class MeetingRepository extends MutableRepository<typeof meetings> {
     return rows[0] ?? null;
   }
 
-  /** Newest first. */
-  list(limit = 50): Promise<Meeting[]> {
-    return this.findMany({ orderBy: desc(meetings.createdAt), limit });
+  /** The meeting if it exists and belongs to the user; null otherwise, so callers cannot tell the two apart. */
+  findOwned(id: string, userId: string): Promise<Meeting | null> {
+    return this.findOne(and(eq(meetings.id, id), eq(meetings.userId, userId))!);
+  }
+
+  /** The user's own meetings, newest first. */
+  listByUser(userId: string, limit = 50): Promise<Meeting[]> {
+    return this.findMany({ where: eq(meetings.userId, userId), orderBy: desc(meetings.createdAt), limit });
   }
 
   async touchHeartbeat(id: string, at: Date = new Date()): Promise<void> {

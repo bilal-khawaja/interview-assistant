@@ -57,6 +57,20 @@
       "when": 1792502720518,
       "tag": "0007_chat_messages_notify",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793019487469,
+      "tag": "0008_auth_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793187040535,
+      "tag": "0009_meeting_owner",
+      "breakpoints": true
     }
   ]
 }

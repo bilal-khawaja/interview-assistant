@@ -1,3 +1,4 @@
+import { TEST_OWNER_ID, testOwner, testOwnerAuth } from "../auth/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { inArray } from "drizzle-orm";
 import { websocket } from "hono/bun";
@@ -113,6 +114,7 @@ run("meeting lifecycle (postgres)", () => {
   };
 
   beforeAll(async () => {
+    await testOwner(db);
     await bridge.start();
     controller = new MeetingController({
       sql,
@@ -131,6 +133,7 @@ run("meeting lifecycle (postgres)", () => {
       createLiveSource: () => (liveSource = new EchoLiveSource()),
     });
     const app = createApp({
+      auth: testOwnerAuth(),
       meetings,
       segments,
       participants: new MeetingParticipantRepository(db),
@@ -182,7 +185,7 @@ run("meeting lifecycle (postgres)", () => {
     expect(await segments.head(id)).toBeGreaterThanOrEqual(3);
     const seen = frames.filter((f): f is SegmentFrame => f.type === "segment").map((f) => f.seq);
     expect(seen).toEqual(seen.map((_, i) => i + 1));
-    expect(controller.activeMeetingId).toBeNull();
+    expect(controller.activeMeetingId(TEST_OWNER_ID)).toBeNull();
   });
 
   test("a second start while one is live is refused with the live meeting's id", async () => {
@@ -209,26 +212,26 @@ run("meeting lifecycle (postgres)", () => {
     youtubeSource = () => new TickSource(5, 3);
     const { json } = await startYoutube();
     await until(async () => (await meetings.findById(json.id!))?.status === "ended");
-    expect(controller.activeMeetingId).toBeNull();
+    expect(controller.activeMeetingId(TEST_OWNER_ID)).toBeNull();
     expect(await segments.head(json.id!)).toBe(3);
     youtubeSource = () => new TickSource();
     expect((await startYoutube()).response.status).toBe(201);
   });
 
   test("rejects bad requests without creating a meeting", async () => {
-    const before = (await meetings.list(200)).length;
+    const before = (await meetings.listByUser(TEST_OWNER_ID, 200)).length;
     expect((await post("/meetings", { source: "tape" })).status).toBe(400);
     expect((await post("/meetings", { source: "youtube" })).status).toBe(400);
     expect((await post("/meetings", { source: "youtube", url: "not a youtube url" })).status).toBe(400);
     expect((await post("/meetings", { source: "youtube", url: "x", maxSeconds: 0 })).status).toBe(400);
-    expect((await meetings.list(200)).length).toBe(before);
+    expect((await meetings.listByUser(TEST_OWNER_ID, 200)).length).toBe(before);
   });
 
   test("without a Deepgram key starting is unavailable, not a crash", async () => {
     hasKey = false;
     const response = await post("/meetings", { source: "live" });
     expect(response.status).toBe(503);
-    expect(controller.activeMeetingId).toBeNull();
+    expect(controller.activeMeetingId(TEST_OWNER_ID)).toBeNull();
   });
 
   test("lists meetings newest first and reports the running source", async () => {

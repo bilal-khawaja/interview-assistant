@@ -44,6 +44,15 @@ export class BackendProcess {
     return this.proc!.pid;
   }
 
+  /**
+   * The app's own .env (loaded when this test runs from the repo root) can point at another
+   * database. The backend must use the one in its own .env, so that variable is not inherited.
+   */
+  private childEnv(): Record<string, string | undefined> {
+    const { DATABASE_URL: _inherited, ...inherited } = process.env;
+    return { ...inherited, ...this.env, PORT: String(this.upstreamPort) };
+  }
+
   async start(): Promise<void> {
     if (this.proc) return;
     if (this.upstreamPort === 0) this.upstreamPort = await freePort();
@@ -51,14 +60,17 @@ export class BackendProcess {
     this.output = '';
     const proc = Bun.spawn([process.execPath, 'run', 'scripts/server.ts'], {
       cwd: this.dir,
-      env: { ...process.env, ...this.env, PORT: String(this.upstreamPort) },
+      env: this.childEnv(),
       stdout: 'pipe',
       stderr: 'pipe',
     });
     this.proc = proc;
     void this.collect(proc.stdout as ReadableStream<Uint8Array>);
     void this.collect(proc.stderr as ReadableStream<Uint8Array>);
-    void proc.exited.then(() => {
+    void proc.exited.then((code) => {
+      // A backend that dies on its own (not through kill()) says so in the failure output.
+      if (this.proc === proc) this.output = `${this.output}SERVER process exited unexpectedly, code ${code}
+`.slice(-8_000);
       if (this.proc === proc) this.proc = null;
     });
 

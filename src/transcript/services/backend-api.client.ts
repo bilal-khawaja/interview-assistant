@@ -1,3 +1,5 @@
+import { APP_ORIGIN } from '../../auth/constants';
+import type { AuthUser, SignInInput, SignUpInput } from '../../types/auth';
 import type { BackendChat, BackendChatMessage, SendMode } from '../../types/meeting-chat';
 import type { Meeting, StartMeetingInput } from '../../types/transcript';
 
@@ -19,8 +21,25 @@ const END_TIMEOUT_MS = 20_000;
 
 export type FetchLike = typeof fetch;
 
-/** REST calls to the transcript backend. The base URL can change at runtime. */
+interface RequestOptions {
+  method?: string;
+  body?: unknown;
+  timeoutMs?: number;
+  /** Present the app's origin, which the backend requires on sign-in, sign-up and sign-out. */
+  appOrigin?: boolean;
+  /** False for calls whose 401 means "wrong credentials" or is handled by the caller. */
+  notifyUnauthorized?: boolean;
+}
+
+/**
+ * REST calls to the transcript backend. The base URL can change at runtime. Once a session
+ * token is set it goes on every request and every socket as `Authorization: Bearer`; it is
+ * never put in a URL or an error message.
+ */
 export class BackendApi {
+  private token: string | null = null;
+  private unauthorized: (() => void) | null = null;
+
   constructor(
     private baseUrl: string,
     private readonly fetchImpl: FetchLike = fetch,
@@ -32,6 +51,45 @@ export class BackendApi {
 
   get url(): string {
     return this.baseUrl;
+  }
+
+  setToken(token: string | null): void {
+    this.token = token;
+  }
+
+  get hasToken(): boolean {
+    return this.token !== null;
+  }
+
+  /** Called when the backend answers 401 to a request that carried the token. */
+  onUnauthorized(handler: (() => void) | null): void {
+    this.unauthorized = handler;
+  }
+
+  /** The headers a socket upgrade needs to be accepted as the signed-in user. */
+  authHeaders(): Record<string, string> {
+    return this.token ? { authorization: `Bearer ${this.token}` } : {};
+  }
+
+  /** Opens a WebSocket as the signed-in user. Electron's main-process WebSocket takes headers. */
+  openSocket = (url: string): WebSocket =>
+    new WebSocket(url, { headers: this.authHeaders() } as unknown as string[]);
+
+  signUp(input: SignUpInput): Promise<{ token: string; user: AuthUser }> {
+    return this.authenticate('/api/auth/sign-up/email', input);
+  }
+
+  signIn(input: SignInInput): Promise<{ token: string; user: AuthUser }> {
+    return this.authenticate('/api/auth/sign-in/email', input);
+  }
+
+  async signOut(): Promise<void> {
+    await this.request('/api/auth/sign-out', { method: 'POST', body: {}, appOrigin: true, notifyUnauthorized: false });
+  }
+
+  /** Who the token belongs to. A 401 here is for the caller to handle, not a lost session. */
+  me(): Promise<AuthUser> {
+    return this.request<AuthUser>('/me', { notifyUnauthorized: false });
   }
 
   async health(): Promise<void> {
@@ -93,15 +151,33 @@ export class BackendApi {
     );
   }
 
-  private async request<T = unknown>(
-    path: string,
-    init: { method?: string; body?: unknown; timeoutMs?: number } = {},
-  ): Promise<T> {
+  private async authenticate(path: string, body: unknown): Promise<{ token: string; user: AuthUser }> {
+    const { json, headers } = await this.send<{ user?: AuthUser }>(path, {
+      method: 'POST',
+      body,
+      appOrigin: true,
+      notifyUnauthorized: false,
+    });
+    const token = headers.get('set-auth-token');
+    if (!token || !json?.user) throw new BackendApiError('the backend did not return a session', null);
+    const { id, email, name } = json.user;
+    return { token, user: { id, email, name } };
+  }
+
+  private async request<T = unknown>(path: string, init: RequestOptions = {}): Promise<T> {
+    return (await this.send<T>(path, init)).json as T;
+  }
+
+  private async send<T>(path: string, init: RequestOptions): Promise<{ json: T | null; headers: Headers }> {
     let response: Response;
     try {
       response = await this.fetchImpl(`${this.baseUrl}${path}`, {
         method: init.method ?? 'GET',
-        headers: init.body === undefined ? undefined : { 'content-type': 'application/json' },
+        headers: {
+          ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
+          ...(init.appOrigin ? { origin: APP_ORIGIN } : {}),
+          ...this.authHeaders(),
+        },
         body: init.body === undefined ? undefined : JSON.stringify(init.body),
         signal: AbortSignal.timeout(init.timeoutMs ?? REQUEST_TIMEOUT_MS),
       });
@@ -119,10 +195,15 @@ export class BackendApi {
     } catch {
       // not JSON
     }
+    if (response.status === 401 && this.token && init.notifyUnauthorized !== false) this.unauthorized?.();
     if (!response.ok) {
-      const record = (json ?? {}) as { error?: string; meetingId?: string };
-      throw new BackendApiError(record.error ?? `backend returned ${response.status}`, response.status, record.meetingId);
+      const record = (json ?? {}) as { error?: string; message?: string; meetingId?: string };
+      throw new BackendApiError(
+        record.error ?? record.message ?? `backend returned ${response.status}`,
+        response.status,
+        record.meetingId,
+      );
     }
-    return json as T;
+    return { json: json as T | null, headers: response.headers };
   }
 }

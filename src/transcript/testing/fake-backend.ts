@@ -29,6 +29,18 @@ export class FakeBackend {
   refuseStreams = false;
   /** Stream sockets opened, with the resume point each asked for. */
   streamOpens: { meetingId: string; after: number }[] = [];
+  /**
+   * Accounts the fake knows, by email. Once `requireAuth` is on, every route but /healthz and
+   * /api/auth answers 401 (REST and WebSocket upgrades alike) unless it carries a token this
+   * fake issued at sign-in or sign-up.
+   */
+  readonly accounts = new Map<string, { password: string; user: { id: string; email: string; name: string } }>();
+  readonly tokens = new Map<string, string>();
+  requireAuth = false;
+  /** Origin header of each sign-in, sign-up and sign-out call, in order. */
+  authOrigins: (string | null)[] = [];
+  /** Authorization header of each request that reached a protected route (REST and sockets). */
+  seenAuthorization: (string | null)[] = [];
   private server!: ReturnType<typeof Bun.serve>;
   private counter = 0;
   private port = 0;
@@ -250,12 +262,78 @@ export class FakeBackend {
     return json({ error: 'not found' }, 404);
   }
 
+  /** Issues a token for the account and returns the response Better Auth would. */
+  addAccount(email: string, password: string, name = 'Test User'): { id: string; email: string; name: string } {
+    const user = { id: `user-${++this.counter}`, email: email.toLowerCase(), name };
+    this.accounts.set(user.email, { password, user });
+    return user;
+  }
+
+  /** A token that works until revoke() is called. For tests that start already signed in. */
+  issueToken(email: string): string {
+    const token = `tok-${crypto.randomUUID()}`;
+    this.tokens.set(token, email.toLowerCase());
+    return token;
+  }
+
+  /** Makes the backend forget the token, as if the session expired. */
+  revoke(token: string): void {
+    this.tokens.delete(token);
+  }
+
+  private userOf(token: string) {
+    return this.accounts.get(this.tokens.get(token)!)?.user ?? null;
+  }
+
+  private async handleAuth(req: Request, url: URL, json: (body: unknown, status?: number) => Response): Promise<Response> {
+    this.authOrigins.push(req.headers.get('origin'));
+    // Like Better Auth, refuse a null origin and any origin that is not the app's.
+    const origin = req.headers.get('origin');
+    if (origin !== null && origin !== 'interview-assistant://app') return json({ message: 'Invalid origin' }, 403);
+    const body = (await req.json().catch(() => ({}))) as { email?: string; password?: string; name?: string };
+    const done = (email: string) => {
+      const token = this.issueToken(email);
+      return new Response(JSON.stringify({ token, user: this.accounts.get(email)!.user }), {
+        headers: { 'content-type': 'application/json', 'set-auth-token': token },
+      });
+    };
+    if (url.pathname === '/api/auth/sign-up/email') {
+      const email = (body.email ?? '').toLowerCase();
+      if (this.accounts.has(email)) return json({ message: 'User already exists', code: 'USER_ALREADY_EXISTS' }, 422);
+      this.addAccount(email, body.password ?? '', body.name ?? '');
+      return done(email);
+    }
+    if (url.pathname === '/api/auth/sign-in/email') {
+      const email = (body.email ?? '').toLowerCase();
+      const account = this.accounts.get(email);
+      if (!account || account.password !== body.password) {
+        return json({ message: 'Invalid email or password', code: 'INVALID_EMAIL_OR_PASSWORD' }, 401);
+      }
+      return done(email);
+    }
+    if (url.pathname === '/api/auth/sign-out') {
+      const token = /^Bearer (.+)$/.exec(req.headers.get('authorization') ?? '')?.[1];
+      if (token) this.tokens.delete(token);
+      return json({ success: true });
+    }
+    return json({ error: 'not found' }, 404);
+  }
+
   private async handle(req: Request, server: Bun.Server<SocketData>): Promise<Response | undefined> {
     const url = new URL(req.url);
     const json = (body: unknown, status = 200) => Response.json(body, { status });
     const parts = url.pathname.split('/').filter(Boolean);
 
     if (url.pathname === '/healthz') return json({ ok: true });
+
+    if (url.pathname.startsWith('/api/auth/')) return this.handleAuth(req, url, json);
+    if (this.requireAuth) {
+      const header = req.headers.get('authorization');
+      this.seenAuthorization.push(header);
+      const token = /^Bearer (.+)$/.exec(header ?? '')?.[1];
+      if (!token || !this.tokens.has(token)) return json({ error: 'unauthorized' }, 401);
+      if (url.pathname === '/me') return json(this.userOf(token));
+    }
 
     if (parts[0] === 'meetings') {
       const id = parts[1];

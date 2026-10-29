@@ -1,15 +1,18 @@
 import { Hono } from "hono";
 import { upgradeWebSocket } from "hono/bun";
 import type { MeetingRepository } from "../db/repositories/meeting.repository";
+import { currentUserId, mountAuthRoutes, requireAuth, type AuthApi } from "../auth/routes";
 import { mountChatRoutes, type ChatApiDeps } from "./chat-routes";
 import { mountMeetingRoutes, type MeetingApiDeps } from "./meeting-routes";
 import { sinkFor } from "./sink";
 import { runTranscriptStream, type StreamDeps } from "./transcript-stream";
 
 export type AppDeps = StreamDeps & {
-  meetings: Pick<MeetingRepository, "findById">;
+  meetings: Pick<MeetingRepository, "findOwned">;
   /** Without it the server only streams transcripts. */
   chat?: ChatApiDeps;
+  /** Every route except /healthz and /api/auth needs a signed-in user. */
+  auth: AuthApi;
   /** Without it meetings can only be started outside the server (the producer script). */
   meetingApi?: MeetingApiDeps;
 };
@@ -23,11 +26,17 @@ export function createApp(deps: AppDeps) {
 
   app.get("/healthz", (c) => c.json({ ok: true }));
 
+  mountAuthRoutes(app, deps.auth);
+
+  // Fail closed: anything mounted below needs a signed-in user, WebSocket upgrades included,
+  // which are checked here before any data is sent.
+  app.use("*", requireAuth(deps.auth));
+
   app.get(
     "/meetings/:id/stream",
     async (c, next) => {
       const meetingId = c.req.param("id");
-      if (!UUID.test(meetingId) || !(await deps.meetings.findById(meetingId))) {
+      if (!UUID.test(meetingId) || !(await deps.meetings.findOwned(meetingId, currentUserId(c)))) {
         return c.json({ error: "not found" }, 404);
       }
 
@@ -62,7 +71,7 @@ export function createApp(deps: AppDeps) {
   if (deps.meetingApi) mountMeetingRoutes(app, deps.meetingApi);
 
   if (deps.chat) {
-    mountChatRoutes(app, deps.chat, async (id) => (await deps.meetings.findById(id)) !== null);
+    mountChatRoutes(app, deps.chat, async (id, userId) => (await deps.meetings.findOwned(id, userId)) !== null);
   }
 
   return app;

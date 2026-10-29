@@ -106,6 +106,8 @@ export class TranscriptStore {
   private mic: RunningMic | null = null;
   private started = false;
   private unlisten: (() => void) | null = null;
+  /** Bumped by reset(), so an answer that was in flight for the previous account is dropped. */
+  private epoch = 0;
 
   constructor(
     private readonly api: TranscriptApi,
@@ -161,8 +163,7 @@ export class TranscriptStore {
       onReset: (e) => this.onReset(e),
       onMeeting: (e) => this.onMeeting(e),
     });
-    const configured = await this.api.configure(this.state.backendUrl);
-    if (configured.error !== undefined) this.set({ backend: 'down', backendError: configured.error });
+    await this.applyBackendUrl();
     await this.checkBackend();
     const active = await this.api.active();
     if (active.meeting && active.meeting.status !== 'ended') {
@@ -171,11 +172,28 @@ export class TranscriptStore {
     await this.refreshMeetings();
   }
 
+  /** Tells the main process which backend to talk to. Needed before anything, sign-in included. */
+  async applyBackendUrl(): Promise<void> {
+    const configured = await this.api.configure(this.state.backendUrl);
+    if (configured.error !== undefined) this.set({ backend: 'down', backendError: configured.error });
+  }
+
   dispose(): void {
     this.unlisten?.();
     this.unlisten = null;
     this.stopMic();
     this.started = false;
+  }
+
+  /**
+   * Forgets the account's meetings and transcript (sign-out, or another account signing in).
+   * The backend address is a device setting and stays.
+   */
+  reset(): void {
+    this.epoch++;
+    this.dispose();
+    this.state = initialState(this.state.backendUrl);
+    for (const listener of this.subscribers) listener();
   }
 
   /** A reloaded window re-attaches to the running meeting and restarts its microphone. */
@@ -202,19 +220,21 @@ export class TranscriptStore {
   }
 
   /** Saves and applies a new backend URL. Returns an error message, or null on success. */
-  async setBackendUrl(url: string): Promise<string | null> {
+  async setBackendUrl(url: string, { refresh = true }: { refresh?: boolean } = {}): Promise<string | null> {
     const result = await this.api.configure(url);
     if (result.error !== undefined) return result.error;
     this.writeStorage(BACKEND_URL_KEY, result.url);
     this.set({ backendUrl: result.url });
     await this.checkBackend();
-    await this.refreshMeetings();
+    if (refresh) await this.refreshMeetings();
     return null;
   }
 
   async refreshMeetings(): Promise<void> {
+    const epoch = this.epoch;
     this.set({ listLoading: true });
     const result = await this.api.list();
+    if (epoch !== this.epoch) return;
     if (result.error !== undefined) {
       this.set({ listLoading: false, listError: result.error, backend: 'down', backendError: result.error });
       return;
@@ -291,7 +311,9 @@ export class TranscriptStore {
   async openMeeting(meetingId: string): Promise<void> {
     if (this.state.runningHere) return;
     this.set({ segments: [], status: null, detail: null, error: null });
+    const epoch = this.epoch;
     const result = await this.api.subscribe(meetingId);
+    if (epoch !== this.epoch) return;
     if (result.error !== undefined) {
       this.set({ error: result.error });
       return;

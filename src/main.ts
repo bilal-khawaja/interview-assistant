@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { app, BrowserWindow, globalShortcut, session } from 'electron';
+import { app, BrowserWindow, globalShortcut, safeStorage, session } from 'electron';
 import path from 'node:path';
 import dns from 'node:dns';
 
@@ -28,6 +28,9 @@ import { createTranscriptRouter } from './transcript/controllers/transcript.rout
 import { createMeetingChatRouter } from './transcript/controllers/meeting-chat.router';
 import { MeetingChatService } from './transcript/services/meeting-chat.service';
 import { DEFAULT_BACKEND_URL } from './transcript/backend-url';
+import { AuthService } from './auth/auth.service';
+import { createAuthRouter } from './auth/auth.router';
+import { SafeStorageTokenStore } from './auth/token-store';
 import { createUpdateWindow, createPillWindow, positionPillTopCenter, PILL_WIDTH } from './window/window.settings';
 
 app.setName('System Container');
@@ -70,6 +73,19 @@ const aiRealtimeService = new AiRealtimeService(new OpenaiRealtimeTokenAdapterFa
 const meetingService = new MeetingService(new BackendApi(process.env.BACKEND_URL?.trim() || DEFAULT_BACKEND_URL));
 // Shares the meeting service's API client, so a changed backend URL applies to chats too.
 const meetingChatService = new MeetingChatService(meetingService.api);
+// The session token lives here, in the main process, and never reaches the renderer.
+const authService = new AuthService(
+  meetingService.api,
+  new SafeStorageTokenStore(() => path.join(app.getPath('userData'), 'session.bin'), safeStorage),
+  // Signing out ends a meeting this app started; once the token is gone it could not.
+  { beforeSignOut: () => meetingService.endOwnedMeeting() },
+);
+// Whatever ended the session (sign-out or an expired token), nothing keeps streaming as the old account.
+authService.onChange((state) => {
+  if (state.status !== 'signedOut') return;
+  meetingService.unsubscribe();
+  meetingChatService.unfollowAll();
+});
 
 // Single source of truth for click-through state, shared between the
 // settings toggle (renderer -> tipc) and the Ctrl+Shift+X shortcut, so
@@ -142,6 +158,7 @@ const router = {
   update: createUpdateRouter(() => updateWindow),
   transcript: createTranscriptRouter(meetingService),
   meetingChat: createMeetingChatRouter(meetingChatService),
+  auth: createAuthRouter(authService),
   // upgrade: createUpgradeRouter(() => upgradeWindow),
 };
 registerIpcMain(router);

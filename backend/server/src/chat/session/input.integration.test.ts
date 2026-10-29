@@ -1,3 +1,4 @@
+import { testOwner } from "../../auth/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { env } from "../../env";
@@ -42,7 +43,7 @@ run("ChatInput", () => {
   const newChat = async (title: string) => (await new ChatRepository(db).create(meetingId, title)).id;
 
   beforeAll(async () => {
-    meetingId = (await new MeetingRepository(db).create("chat input test")).id;
+    meetingId = (await new MeetingRepository(db).create("chat input test", await testOwner(db))).id;
   });
 
   afterAll(async () => {

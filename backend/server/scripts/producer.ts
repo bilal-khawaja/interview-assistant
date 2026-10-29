@@ -1,5 +1,7 @@
 import { parseArgs } from "node:util";
 import { createDb } from "../src/db/client";
+import { eq } from "drizzle-orm";
+import { user } from "../src/db/schema";
 import { env } from "../src/env";
 import { MeetingRepository } from "../src/db/repositories/meeting.repository";
 import { SegmentRepository } from "../src/db/repositories/segment.repository";
@@ -22,6 +24,7 @@ replay re-emits a recorded transcript fixture (default: ${DEFAULT_FIXTURE}).
 options:
   --meeting <id>   append to an existing meeting (default: create a new one)
   --title <text>   title for a new meeting
+  --user <email>   account that owns a new meeting (required unless --meeting is given)
   --end            mark the meeting ended when the producer finishes`;
 
 const { values, positionals } = parseArgs({
@@ -30,6 +33,7 @@ const { values, positionals } = parseArgs({
   options: {
     meeting: { type: "string" },
     title: { type: "string" },
+    user: { type: "string" },
     count: { type: "string" },
     interval: { type: "string", default: "500" },
     "max-seconds": { type: "string" },
@@ -60,7 +64,18 @@ if (values.meeting && !existing) {
   await close();
   process.exit(1);
 }
-const meeting = existing ?? (await meetings.create(values.title ?? `${mode} ${target}`));
+let meeting = existing;
+if (!meeting) {
+  const owner = values.user
+    ? (await db.select({ id: user.id }).from(user).where(eq(user.email, values.user.toLowerCase())).limit(1))[0]
+    : undefined;
+  if (!owner) {
+    console.error(values.user ? `no account with email ${values.user}` : "--user <email> is required to create a meeting");
+    await close();
+    process.exit(1);
+  }
+  meeting = await meetings.create(values.title ?? `${mode} ${target}`, owner.id);
+}
 
 const appender = await SegmentAppender.open(
   {

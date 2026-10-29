@@ -17,6 +17,7 @@ import { PRODUCER_LOCK } from "../src/log/append";
 import { createChatAgent, createSummarizerAgent } from "../src/mastra/agents";
 import { endOrphanedMeetings, startOrphanSweeper } from "../src/log/sweep";
 import { PgWakeBridge, WakeHub } from "../src/log/wake";
+import { createAuth } from "../src/auth/auth";
 import { createApp } from "../src/server/app";
 import { MeetingController } from "../src/server/meeting-controller";
 
@@ -80,7 +81,15 @@ const meetingController = new MeetingController({
   spoolDir: "spool",
 });
 
+const auth = createAuth({
+  db,
+  secret: env.BETTER_AUTH_SECRET,
+  baseUrl: env.BETTER_AUTH_URL ?? `http://localhost:${env.PORT}`,
+  trustedOrigins: env.AUTH_TRUSTED_ORIGINS,
+});
+
 const app = createApp({
+  auth,
   meetings,
   meetingApi: meetingController,
   segments,

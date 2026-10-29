@@ -1,3 +1,4 @@
+import { testOwner } from "../auth/testing";
 import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { env } from "../env";
@@ -68,7 +69,7 @@ run("transcript log (postgres)", () => {
   const created: string[] = [];
 
   const newMeeting = async () => {
-    const m = await meetings.create("t");
+    const m = await meetings.create("t", await testOwner(db));
     created.push(m.id);
     return m;
   };

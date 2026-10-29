@@ -47,7 +47,7 @@ export type MeetingControllerDeps = {
   sql: BunSQL;
   meetings: Pick<
     MeetingRepository,
-    "create" | "findById" | "setStatus" | "touchHeartbeat" | "list"
+    "create" | "findById" | "findOwned" | "setStatus" | "touchHeartbeat" | "listByUser"
   >;
   segments: SegmentRepository;
   chats: Pick<ChatRepository, "create">;
@@ -69,6 +69,7 @@ export type MeetingControllerDeps = {
 
 type Active = {
   meetingId: string;
+  userId: string;
   source: MeetingSourceKind;
   abort: AbortController;
   done: Promise<void>;
@@ -80,53 +81,71 @@ const DEFAULT_LIVE_IDLE_MS = 2 * 60_000;
 
 /**
  * Runs the producer and the chat consumer for a meeting inside the server, so a client
- * starts and ends a meeting with one call. One meeting is live at a time: the microphone
- * is a single source and two producers would only compete for it.
+ * starts and ends a meeting with one call. Each user has at most one live meeting, since
+ * a person has a single microphone; different users run theirs side by side. Every piece
+ * of live state (producer, audio input, spool, producer lock) belongs to one meeting, so
+ * nothing is shared between users.
  */
 export class MeetingController {
-  private active: Active | null = null;
-  private starting = false;
+  /** Running meetings by meeting id. */
+  private readonly running = new Map<string, Active>();
+  /** Users whose start is in progress, so two quick starts cannot both pass the check. */
+  private readonly starting = new Set<string>();
 
   constructor(private readonly deps: MeetingControllerDeps) {}
 
-  get activeMeetingId(): string | null {
-    return this.active?.meetingId ?? null;
+  /** The user's running meeting, or null. */
+  activeMeetingId(userId: string): string | null {
+    return this.activeOf(userId)?.meetingId ?? null;
+  }
+
+  private activeOf(userId: string): Active | null {
+    for (const active of this.running.values()) if (active.userId === userId) return active;
+    return null;
   }
 
   /** What a running meeting transcribes, or null for one that is not running here. */
   sourceOf(meetingId: string): MeetingSourceKind | null {
-    return this.active?.meetingId === meetingId ? this.active.source : null;
+    return this.running.get(meetingId)?.source ?? null;
   }
 
   /** The audio input of the running live meeting, or null. */
   audioInput(meetingId: string): LiveAudioSource | null {
-    return this.active?.meetingId === meetingId ? this.active.live : null;
+    return this.running.get(meetingId)?.live ?? null;
   }
 
-  list(limit?: number): Promise<Meeting[]> {
-    return this.deps.meetings.list(limit);
+  list(userId: string, limit?: number): Promise<Meeting[]> {
+    return this.deps.meetings.listByUser(userId, limit);
   }
 
-  get(id: string): Promise<Meeting | null> {
-    return this.deps.meetings.findById(id);
+  /** The user's meeting, or null when it does not exist or belongs to someone else. */
+  get(userId: string, id: string): Promise<Meeting | null> {
+    return this.deps.meetings.findOwned(id, userId);
   }
 
-  async start(request: MeetingStartRequest): Promise<Meeting> {
-    if (this.active || this.starting) throw new MeetingAlreadyLiveError(this.active?.meetingId ?? "");
-    this.starting = true;
+  async start(userId: string, request: MeetingStartRequest): Promise<Meeting> {
+    const live = this.activeOf(userId);
+    if (live || this.starting.has(userId)) throw new MeetingAlreadyLiveError(live?.meetingId ?? "");
+    this.starting.add(userId);
     try {
-      return await this.startMeeting(request);
+      return await this.startMeeting(userId, request);
     } finally {
-      this.starting = false;
+      this.starting.delete(userId);
     }
   }
 
   /**
    * Stops the producer, waits for queued segments to reach the database and marks the
-   * meeting ended. Safe to repeat; returns null only when the meeting does not exist.
+   * meeting ended. Safe to repeat; returns null when the meeting does not exist or is not
+   * the user's.
    */
-  async end(meetingId: string): Promise<Meeting | null> {
-    const active = this.active?.meetingId === meetingId ? this.active : null;
+  async end(userId: string, meetingId: string): Promise<Meeting | null> {
+    if (!(await this.deps.meetings.findOwned(meetingId, userId))) return null;
+    return this.stop(meetingId);
+  }
+
+  private async stop(meetingId: string): Promise<Meeting | null> {
+    const active = this.running.get(meetingId) ?? null;
     if (active) {
       active.abort.abort();
       active.live?.end();
@@ -142,12 +161,12 @@ export class MeetingController {
     return (await this.deps.meetings.setStatus(meetingId, "ended")) ?? meeting;
   }
 
-  /** Ends the running meeting, if any. For server shutdown. */
+  /** Ends every running meeting. For server shutdown. */
   async shutdown(): Promise<void> {
-    if (this.active) await this.end(this.active.meetingId);
+    await Promise.all([...this.running.keys()].map((meetingId) => this.stop(meetingId)));
   }
 
-  private async startMeeting(request: MeetingStartRequest): Promise<Meeting> {
+  private async startMeeting(userId: string, request: MeetingStartRequest): Promise<Meeting> {
     const { deepgramApiKey } = this.deps;
     if (!deepgramApiKey) {
       throw new MeetingRequestError("DEEPGRAM_API_KEY is not set on the server", "unavailable");
@@ -165,7 +184,7 @@ export class MeetingController {
     }
 
     const title = request.title?.trim() || (request.source === "live" ? "Live meeting" : request.url);
-    const meeting = await this.deps.meetings.create(title);
+    const meeting = await this.deps.meetings.create(title, userId);
     let appender: SegmentAppender | null = null;
     try {
       appender = await SegmentAppender.open(this.appenderDeps(), meeting.id);
@@ -204,13 +223,14 @@ export class MeetingController {
       this.deps.host.start(meeting.id, chat.id);
 
       const abort = new AbortController();
-      this.active = {
+      this.running.set(meeting.id, {
         meetingId: meeting.id,
+        userId,
         source: request.source,
         abort,
         live,
         done: this.run(meeting.id, source, appender, abort),
-      };
+      });
     } catch (error) {
       await appender?.close().catch(() => undefined);
       await this.deps.meetings.setStatus(meeting.id, "ended").catch(() => undefined);
@@ -239,7 +259,7 @@ export class MeetingController {
       await this.deps.meetings
         .setStatus(meetingId, "ended")
         .catch((error) => this.log(`MEETING ${meetingId} could not be marked ended`, error));
-      if (this.active?.meetingId === meetingId) this.active = null;
+      this.running.delete(meetingId);
     }
   }
 

@@ -26,6 +26,7 @@
     "@mastra/rag": "2.6.7",
     "@t3-oss/env-core": "^0.13.11",
     "ai": "^7.0.130",
+    "better-auth": "^1.7.13",
     "drizzle-orm": "^0.45.3",
     "hono": "^4.13.13",
     "pdfjs-dist": "6.4.299",

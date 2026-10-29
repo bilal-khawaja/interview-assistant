@@ -124,6 +124,13 @@ export class MeetingChatStore {
     this.unlisten = null;
   }
 
+  /** Forgets every open chat (sign-out, or another account signing in). The main process stops the streams. */
+  reset(): void {
+    this.lastSeq.clear();
+    this.outgoing.clear();
+    this.set({ chats: {} });
+  }
+
   listChats(meetingId: string): Promise<ApiResult<{ chats: BackendChat[] }>> {
     return this.api.list(meetingId);
   }

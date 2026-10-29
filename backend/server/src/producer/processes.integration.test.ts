@@ -2,6 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { inArray } from "drizzle-orm";
 import { env } from "../env";
 import { createDb, type DbClient } from "../db/client";
+import { OWNER_EMAIL, testOwner } from "../auth/testing";
 import { meetings, transcriptSegments } from "../db/schema";
 
 const url = env.DATABASE_URL;
@@ -18,6 +19,7 @@ async function probe(): Promise<DbClient | null> {
 }
 
 const client = await probe();
+if (client) await testOwner(client.db);
 await client?.close();
 const run = client ? describe : describe.skip;
 
@@ -57,7 +59,7 @@ run("producer and consumer as separate processes", () => {
   });
 
   test("a late consumer starts at cursor 0, resumes on rerun, and a fresh identity replays everything", async () => {
-    const producer = await start("producer", ["replay", "--count", "6", "--interval", "20"]).done;
+    const producer = await start("producer", ["replay", "--user", OWNER_EMAIL, "--count", "6", "--interval", "20"]).done;
     const meeting = meetingOf(producer.stdout);
     expect(meeting).toBeTruthy();
 
@@ -83,7 +85,7 @@ run("producer and consumer as separate processes", () => {
   }, 60_000);
 
   test("a consumer started first receives a later producer's segments live via NOTIFY", async () => {
-    const seed = await start("producer", ["replay", "--count", "1", "--interval", "10"]).done;
+    const seed = await start("producer", ["replay", "--user", OWNER_EMAIL, "--count", "1", "--interval", "10"]).done;
     const meeting = meetingOf(seed.stdout);
 
     const consumer = start("consumer", ["--meeting", meeting, "--name", "live", "--idle-exit", "2500"]);
@@ -96,7 +98,7 @@ run("producer and consumer as separate processes", () => {
   }, 60_000);
 
   test("two consumers with different names each get every segment, and the same name cannot run twice", async () => {
-    const seed = await start("producer", ["replay", "--count", "3", "--interval", "10"]).done;
+    const seed = await start("producer", ["replay", "--user", OWNER_EMAIL, "--count", "3", "--interval", "10"]).done;
     const meeting = meetingOf(seed.stdout);
 
     const a = start("consumer", ["--meeting", meeting, "--name", "alpha", "--idle-exit", "1500"]);

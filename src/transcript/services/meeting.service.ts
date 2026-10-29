@@ -172,12 +172,14 @@ export class MeetingService {
       onSegment: (segment) => this.emit({ type: 'segment', event: { meetingId, segment } }),
       onStatus: (status, detail) => this.emitStatus(meetingId, status, detail),
       onReset: () => this.emit({ type: 'reset', event: { meetingId } }),
+      createSocket: this.api.openSocket,
       ...this.options.streamOptions,
     });
     const uplink = audio
       ? new AudioUplink({
           baseUrl,
           meetingId,
+          createSocket: this.api.openSocket,
           onState: (state, detail) => {
             if (state === 'reconnecting') this.emitStatus(meetingId, 'reconnecting', `microphone link: ${detail ?? 'reconnecting'}`);
           },

@@ -1,3 +1,4 @@
+import { testOwner } from "../auth/testing";
 import { sql as rawSql, inArray } from "drizzle-orm";
 import { afterAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, statSync } from "node:fs";
@@ -45,7 +46,7 @@ run("write-ahead spool and pre-write lock probe (postgres)", () => {
   const dirs: string[] = [];
 
   const newMeeting = async () => {
-    const m = await meetings.create("spool");
+    const m = await meetings.create("spool", await testOwner(db));
     created.push(m.id);
     return m;
   };

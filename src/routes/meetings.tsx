@@ -25,6 +25,7 @@ import {
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Spinner } from '@/components/ui/spinner';
 import { AppSidebar, AppSidebarInset } from '@/layout/sidebar';
+import { OpenChatMenu } from '@/components/meetings/open-chat-menu';
 import { startMeetingChat } from '@/lib/meeting-chat-actions';
 import { transcriptStore, useMeetings } from '@/lib/transcript-client';
 
@@ -83,6 +84,7 @@ function MeetingsPage() {
                     <SidebarTrigger />
                     <h1 className="text-base font-semibold">Meetings</h1>
                     <div className="ml-auto flex items-center gap-2">
+                        {meeting && <OpenChatMenu key={meeting.id} meeting={meeting} />}
                         {meeting?.status === 'live' && (
                             <Button variant="outline" size="sm" disabled={chatStarting} onClick={() => void startChat()}>
                                 {chatStarting ? <Spinner className="mr-2 size-4" /> : <IconMessageChatbot className="mr-1 size-4" />}

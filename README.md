@@ -76,7 +76,8 @@ order; no separate producer or consumer process is needed, the server runs both 
 # 1. Postgres (docker container with pgvector, port 5433 in backend/server/.env)
 docker start pgvector-db
 
-# 2. Backend (needs DATABASE_URL and DEEPGRAM_API_KEY in backend/server/.env)
+# 2. Backend (needs DATABASE_URL, DEEPGRAM_API_KEY and BETTER_AUTH_SECRET in backend/server/.env;
+#    make the secret with `openssl rand -hex 32`)
 cd backend/server
 bun install
 bun run db:migrate
@@ -88,6 +89,28 @@ npm start
 
 The backend URL can be changed in Settings → Customization → Backend. Quitting the app ends a
 meeting it started; minimizing or hiding the window does not.
+
+#### Accounts and devices
+
+Every meeting belongs to the account that started it; other accounts get a 404 for its id, on
+every route and WebSocket. Sign in with the same account on a second computer and its meetings
+and chats are there: open the meeting from the list, then **Open chat** to pick up any chat made
+elsewhere. Only the device that started a meeting sends audio. Chat tabs are not synced between
+devices (they also hold local-only chats and browser tabs), and chats under `/ai` that are not on
+a meeting stay on the device that made them.
+
+Trying it without a second computer:
+
+```bash
+# Headless second device, own backend and fake Deepgram, no model calls (repo root)
+bun run device-sim          # or: bun run scripts/device-sim.ts --backend http://localhost:3000
+
+# Two real copies of the app on one machine: give each its own data folder, since the session
+# token is stored encrypted inside it. (The app has no single-instance lock.)
+npm start -- -- --user-data-dir=C:\temp\app-b --remote-debugging-port=9223
+```
+
+Backend tests for isolation between accounts: `cd backend/server && bun test src/server/ownership src/server/isolation`.
 
 ### Build
 

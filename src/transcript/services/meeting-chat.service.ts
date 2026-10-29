@@ -67,6 +67,7 @@ export class MeetingChatService {
       onMessage: (message) => this.emit({ type: 'message', event: { chatId, message } }),
       onStatus: (status, detail) => this.emit({ type: 'status', event: { chatId, status, detail } }),
       onReset: () => this.emit({ type: 'reset', event: { chatId } }),
+      createSocket: this.api.openSocket,
       ...this.options.streamOptions,
     });
     this.open.set(chatId, stream);
@@ -78,9 +79,14 @@ export class MeetingChatService {
     this.open.delete(chatId);
   }
 
-  dispose(): void {
+  /** Stops every open chat stream, e.g. when the account signs out. */
+  unfollowAll(): void {
     for (const stream of this.open.values()) stream.stop();
     this.open.clear();
+  }
+
+  dispose(): void {
+    this.unfollowAll();
     this.listeners.clear();
   }
 

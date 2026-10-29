@@ -387,3 +387,66 @@ describe('TranscriptStore', () => {
     expect(calls).toBe(seen);
   });
 });
+
+describe('TranscriptStore account change', () => {
+  test('reset drops the previous account\'s meetings, transcript and microphone but keeps the backend address', async () => {
+    api.meetings = [meeting({ id: 'ada-1', status: 'ended' })];
+    await store.setBackendUrl('http://example:4000');
+    await store.startMeeting({ source: 'live' });
+    api.segment({ meetingId: 'm1', segment: segment(1) });
+    expect(store.getState().meetings).toHaveLength(1);
+
+    store.reset();
+
+    const after = store.getState();
+    expect(after.meeting).toBeNull();
+    expect(after.segments).toEqual([]);
+    expect(after.meetings).toEqual([]);
+    expect(after.runningHere).toBe(false);
+    expect(after.micActive).toBe(false);
+    expect(mic.stops).toBe(1);
+    expect(after.backendUrl).toBe('http://example:4000');
+  });
+
+  test('a meeting list that was still loading when the account changed is not shown to the next account', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const slow = api.list.bind(api);
+    api.meetings = [meeting({ id: 'ada-private', status: 'ended' })];
+    api.list = async () => {
+      await gate;
+      return slow();
+    };
+    const loading = store.refreshMeetings();
+    store.reset();
+    release();
+    await loading;
+    expect(store.getState().meetings).toEqual([]);
+  });
+
+  test('after a reset the store can start again for the next account', async () => {
+    store.reset();
+    api.meetings = [meeting({ id: 'bo-1', status: 'ended' })];
+    await store.init();
+    expect(store.getState().meetings.map((m) => m.id)).toEqual(['bo-1']);
+  });
+
+  test('applyBackendUrl tells the main process the saved address without needing a session', async () => {
+    api = new FakeApi();
+    storage.setItem(BACKEND_URL_KEY, 'http://example:5000');
+    store = new TranscriptStore(api, mic, storage);
+    await store.applyBackendUrl();
+    expect(api.configuredWith).toEqual(['http://example:5000']);
+    expect(api.calls).toEqual([]);
+  });
+
+  test('setBackendUrl can skip the meeting list, which needs a signed-in user', async () => {
+    const before = api.calls.length;
+    api.list = async () => {
+      api.calls.push('list');
+      return { meetings: [] };
+    };
+    expect(await store.setBackendUrl('http://example:6000', { refresh: false })).toBeNull();
+    expect(api.calls.slice(before)).not.toContain('list');
+  });
+});
