@@ -16,6 +16,8 @@ export const PARTICIPANT_ROLES = [
   "interviewer",
   "candidate",
   "observer",
+  /** An account that joined the meeting through an invite link and speaks into it. */
+  "participant",
 ] as const;
 export type ParticipantRole = (typeof PARTICIPANT_ROLES)[number];
 

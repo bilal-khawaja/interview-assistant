@@ -4,6 +4,8 @@ import { useEffect, type CSSProperties } from 'react';
 import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '@/lib/auth-client';
 import { guardRedirect } from '@/lib/auth-guard';
+import { usePendingInvite } from '@/lib/invite-inbox';
+import { startInviteLinks } from '@/lib/invite-link-client';
 import { startAppSession } from '@/lib/session-client';
 
 const queryClient = new QueryClient();
@@ -16,11 +18,14 @@ function RootLayout() {
     // Which account is signed in decides what every store holds, so it is wired once here
     // rather than per page.
     useEffect(() => startAppSession(), []);
+    // A meeting link the operating system opened lands in an inbox the Meetings page reads.
+    useEffect(() => startInviteLinks(), []);
+    const hasPendingInvite = usePendingInvite() !== null;
 
     const { auth } = useAuth();
     const pathname = useRouterState({ select: (state) => state.location.pathname });
     const navigate = useNavigate();
-    const redirect = guardRedirect(auth, pathname);
+    const redirect = guardRedirect(auth, pathname, hasPendingInvite);
 
     useEffect(() => {
         if (redirect) void navigate({ to: redirect, replace: true });

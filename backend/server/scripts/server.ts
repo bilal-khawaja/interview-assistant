@@ -18,7 +18,11 @@ import { createChatAgent, createSummarizerAgent } from "../src/mastra/agents";
 import { endOrphanedMeetings, startOrphanSweeper } from "../src/log/sweep";
 import { PgWakeBridge, WakeHub } from "../src/log/wake";
 import { createAuth } from "../src/auth/auth";
+import { InviteRepository, MemberRepository } from "../src/db/repositories/invite.repository";
 import { createApp } from "../src/server/app";
+import { InviteService } from "../src/server/invite-service";
+import { RateLimiter } from "../src/server/rate-limit";
+import { SpeakerBinder } from "../src/server/speaker-binder";
 import { MeetingController } from "../src/server/meeting-controller";
 
 const { db, sql, close } = createDb();
@@ -78,6 +82,7 @@ const meetingController = new MeetingController({
   runner,
   host,
   deepgramApiKey: env.DEEPGRAM_API_KEY,
+  speakers: new SpeakerBinder(db),
   spoolDir: "spool",
 });
 
@@ -92,6 +97,16 @@ const app = createApp({
   auth,
   meetings,
   meetingApi: meetingController,
+  invites: {
+    service: new InviteService(db),
+    invites: new InviteRepository(db),
+    members: new MemberRepository(db),
+    meetings,
+    redeemLimiter: new RateLimiter(20, 60_000),
+    sourceOf: (id) => meetingController.sourceOf(id),
+    onMemberGone: (meetingId, userId) => meetingController.dropParticipant(meetingId, userId),
+    linkPrefix: env.INVITE_LINK_PREFIX,
+  },
   segments,
   participants: new MeetingParticipantRepository(db),
   hub,

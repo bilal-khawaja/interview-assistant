@@ -20,6 +20,7 @@ import {
 const meeting = (over: Partial<Meeting> = {}): Meeting => ({
   id: 'm1',
   title: 'test',
+  role: 'owner',
   status: 'live',
   source: 'live',
   startedAt: null,
@@ -46,7 +47,14 @@ class FakeApi implements TranscriptApi {
   startResult: ApiResult<{ meeting: Meeting }> = { meeting: meeting() };
   endResult: ApiResult<{ meeting: Meeting }> = { meeting: meeting({ status: 'ended' }) };
   subscribeResult: ApiResult<{ meeting: Meeting }> = { meeting: meeting() };
-  activeResult: { meeting: Meeting | null; owned: boolean } = { meeting: null, owned: false };
+  activeResult: { meeting: Meeting | null; owned: boolean; speaking: boolean } = {
+    meeting: null,
+    owned: false,
+    speaking: false,
+  };
+  joinResult: ApiResult<{ meeting: Meeting }> = { meeting: meeting({ role: 'participant' }) };
+  leaveResult: ApiResult<{ ok: true }> = { ok: true };
+  joinCalls: { token: string; speak: boolean }[] = [];
   calls: string[] = [];
   audio: Uint8Array[] = [];
   startInputs: StartMeetingInput[] = [];
@@ -72,6 +80,15 @@ class FakeApi implements TranscriptApi {
     this.startInputs.push(input);
     await this.startGate;
     return this.startResult;
+  }
+  async join(token: string, speak: boolean) {
+    this.calls.push('join');
+    this.joinCalls.push({ token, speak });
+    return this.joinResult;
+  }
+  async leave(id: string) {
+    this.calls.push(`leave:${id}`);
+    return this.leaveResult;
   }
   async end(id: string) {
     this.calls.push(`end:${id}`);
@@ -344,7 +361,7 @@ describe('TranscriptStore', () => {
   test('a reloaded window resumes the meeting this app owns, including the microphone', async () => {
     storage.setItem(MIC_DEVICE_KEY, 'headset-1');
     api = new FakeApi();
-    api.activeResult = { meeting: meeting(), owned: true };
+    api.activeResult = { meeting: meeting(), owned: true, speaking: false };
     mic = new FakeMic();
     store = new TranscriptStore(api, mic, storage);
     await store.init();
@@ -358,7 +375,7 @@ describe('TranscriptStore', () => {
 
   test('a reloaded window only watches a meeting it does not own', async () => {
     api = new FakeApi();
-    api.activeResult = { meeting: meeting(), owned: false };
+    api.activeResult = { meeting: meeting({ role: 'participant' }), owned: false, speaking: false };
     mic = new FakeMic();
     store = new TranscriptStore(api, mic, storage);
     await store.init();
@@ -385,6 +402,171 @@ describe('TranscriptStore', () => {
     off();
     api.changed({ meeting: meeting({ id: 'z' }) });
     expect(calls).toBe(seen);
+  });
+});
+
+const TOKEN = 'k3J9_aZx-0pQwErTyUiOpAsDfGhJkLzXcVbNm12345A';
+const LINK = `interview-assistant://join/${TOKEN}`;
+
+describe('TranscriptStore joining a meeting', () => {
+  test('joining opens the microphone first, then redeems the link and speaks into the meeting', async () => {
+    const joined = await store.joinMeeting(LINK, { speak: true, micDeviceId: 'headset-2' });
+    expect(joined).toBe(true);
+    expect(mic.starts).toEqual([{ deviceId: 'headset-2' }]);
+    expect(storage.getItem(MIC_DEVICE_KEY)).toBe('headset-2');
+    expect(api.joinCalls).toEqual([{ token: TOKEN, speak: true }]);
+    expect(store.getState()).toMatchObject({
+      speakingHere: true,
+      runningHere: false,
+      micActive: true,
+      joining: false,
+      meeting: { id: 'm1', role: 'participant' },
+    });
+    mic.options.onChunk(chunk(4));
+    await Promise.resolve();
+    expect(api.audio.map((c) => c[0])).toEqual([4]);
+  });
+
+  test('audio captured while the join is in flight is sent once it succeeds', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const original = api.join.bind(api);
+    api.join = async (token, speak) => {
+      await gate;
+      return original(token, speak);
+    };
+    const joining = store.joinMeeting(LINK, { speak: true });
+    await Promise.resolve();
+    await Promise.resolve();
+    mic.options.onChunk(chunk(1));
+    mic.options.onChunk(chunk(2));
+    expect(api.audio).toHaveLength(0);
+    release();
+    await joining;
+    expect(api.audio.map((c) => c[0])).toEqual([1, 2]);
+  });
+
+  test('joining without the microphone only listens', async () => {
+    expect(await store.joinMeeting(LINK, { speak: false })).toBe(true);
+    expect(mic.starts).toHaveLength(0);
+    expect(api.joinCalls).toEqual([{ token: TOKEN, speak: false }]);
+    expect(store.getState()).toMatchObject({ speakingHere: false, micActive: false, meeting: { role: 'participant' } });
+  });
+
+  test('a microphone that cannot open stops the join before the link is spent', async () => {
+    mic.fail = new Error('denied');
+    expect(await store.joinMeeting(LINK, { speak: true })).toBe(false);
+    expect(api.joinCalls).toHaveLength(0);
+    expect(store.getState().error).toContain('denied');
+    expect(store.getState().joining).toBe(false);
+  });
+
+  test('joining while a meeting runs here is refused with a reason', async () => {
+    await store.startMeeting({ source: 'live' });
+    expect(await store.joinMeeting(LINK, { speak: false })).toBe(false);
+    expect(api.joinCalls).toHaveLength(0);
+    expect(store.getState().error).toContain('Leave or end your current meeting');
+  });
+
+  test('a text that is not a meeting link is refused without calling the backend', async () => {
+    expect(await store.joinMeeting('hello', { speak: false })).toBe(false);
+    expect(api.joinCalls).toHaveLength(0);
+    expect(store.getState().error).toContain('meeting link');
+  });
+
+  test('a link the backend does not accept releases the microphone and says so plainly', async () => {
+    api.joinResult = { error: 'not found', status: 404 };
+    expect(await store.joinMeeting(LINK, { speak: true })).toBe(false);
+    expect(mic.stops).toBe(1);
+    expect(store.getState()).toMatchObject({ micActive: false, speakingHere: false, joining: false, meeting: null });
+    expect(store.getState().error).toContain('invalid, has expired');
+  });
+
+  test('a link to your own meeting joins nothing and says so', async () => {
+    api.joinResult = { meeting: meeting({ role: 'owner' }) };
+    expect(await store.joinMeeting(LINK, { speak: true })).toBe(false);
+    expect(store.getState()).toMatchObject({ meeting: null, speakingHere: false, micActive: false, joining: false });
+    expect(store.getState().error).toContain('your own meeting');
+    expect(mic.stops).toBe(1);
+    expect(api.calls).toContain('unsubscribe');
+  });
+
+  test('a main process that cannot answer the join leaves the window usable and tells the person to restart', async () => {
+    api.join = async () => {
+      throw new Error('No handler registered for transcript.meetingJoin');
+    };
+    expect(await store.joinMeeting(LINK, { speak: true })).toBe(false);
+    expect(store.getState().joining).toBe(false);
+    expect(store.getState().micActive).toBe(false);
+    expect(store.getState().error).toContain('start it again');
+  });
+
+  test('a meeting that is not live takes no microphone even if one was asked for', async () => {
+    api.joinResult = { meeting: meeting({ role: 'participant', status: 'ended', source: null }) };
+    expect(await store.joinMeeting(LINK, { speak: true })).toBe(true);
+    expect(store.getState()).toMatchObject({ speakingHere: false, micActive: false });
+    expect(mic.stops).toBe(1);
+  });
+
+  test('while speaking in a meeting, other meetings cannot be started, opened or closed', async () => {
+    await store.joinMeeting(LINK, { speak: true });
+    expect(await store.startMeeting({ source: 'live' })).toBe(false);
+    await store.openMeeting('other');
+    await store.closeMeeting();
+    expect(api.calls).not.toContain('start');
+    expect(api.calls).not.toContain('subscribe:other');
+    expect(api.calls).not.toContain('unsubscribe');
+    expect(store.getState().meeting?.id).toBe('m1');
+  });
+
+  test('leaving stops the microphone, tells the backend and frees the window', async () => {
+    await store.joinMeeting(LINK, { speak: true });
+    await store.leaveMeeting();
+    expect(api.calls).toContain('leave:m1');
+    expect(api.calls).toContain('unsubscribe');
+    expect(mic.stops).toBe(1);
+    expect(store.getState()).toMatchObject({ speakingHere: false, micActive: false, meeting: null, ending: false });
+  });
+
+  test('a failed leave keeps the meeting and shows the error', async () => {
+    await store.joinMeeting(LINK, { speak: true });
+    api.leaveResult = { error: 'cannot reach the backend' };
+    await store.leaveMeeting();
+    expect(store.getState().meeting?.id).toBe('m1');
+    expect(store.getState().error).toContain('cannot reach');
+    expect(store.getState().ending).toBe(false);
+  });
+
+  test('the owner cannot "leave" their own meeting', async () => {
+    await store.startMeeting({ source: 'live' });
+    await store.leaveMeeting();
+    expect(api.calls.some((c) => c.startsWith('leave:'))).toBe(false);
+    expect(store.getState().runningHere).toBe(true);
+  });
+
+  test('being removed stops the microphone, closes the meeting and explains', async () => {
+    await store.joinMeeting(LINK, { speak: true });
+    api.status({ meetingId: 'm1', status: 'removed' });
+    expect(store.getState()).toMatchObject({ meeting: null, speakingHere: false, micActive: false });
+    expect(store.getState().error).toBe('You were removed from this meeting.');
+    expect(mic.stops).toBe(1);
+  });
+
+  test('the meeting ending frees a speaking participant', async () => {
+    await store.joinMeeting(LINK, { speak: true });
+    api.changed({ meeting: meeting({ role: 'participant', status: 'ended' }) });
+    expect(store.getState()).toMatchObject({ speakingHere: false, micActive: false });
+  });
+
+  test('a reloaded window picks the microphone back up for a meeting it speaks in', async () => {
+    storage.setItem(MIC_DEVICE_KEY, 'headset-1');
+    api = new FakeApi();
+    api.activeResult = { meeting: meeting({ role: 'participant' }), owned: false, speaking: true };
+    mic = new FakeMic();
+    store = new TranscriptStore(api, mic, storage);
+    await store.init();
+    expect(mic.starts).toEqual([{ deviceId: 'headset-1' }]);
+    expect(store.getState()).toMatchObject({ speakingHere: true, runningHere: false, micActive: true });
   });
 });
 

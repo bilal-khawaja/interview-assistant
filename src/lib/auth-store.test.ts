@@ -199,6 +199,18 @@ describe('guardRedirect', () => {
     expect(guardRedirect(ada, '/login')).toBe('/');
     for (const path of ['/', '/ai', '/meetings', '/settings/account']) expect(guardRedirect(ada, path)).toBeNull();
   });
+
+  test('a waiting meeting link takes a signed-in person to /meetings, even straight from /login', () => {
+    expect(guardRedirect(ada, '/login', true)).toBe('/meetings');
+    expect(guardRedirect(ada, '/ai', true)).toBe('/meetings');
+    expect(guardRedirect(ada, '/meetings', true)).toBeNull();
+  });
+
+  test('a waiting meeting link does not unlock anything for someone signed out or not yet checked', () => {
+    expect(guardRedirect(out, '/meetings', true)).toBe('/login');
+    expect(guardRedirect(out, '/login', true)).toBeNull();
+    expect(guardRedirect({ status: 'unknown' }, '/ai', true)).toBeNull();
+  });
 });
 
 describe('startSession', () => {

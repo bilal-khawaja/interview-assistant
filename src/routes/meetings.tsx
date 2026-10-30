@@ -1,14 +1,19 @@
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
     IconBrandYoutube,
+    IconDoorExit,
+    IconLink,
     IconMessageChatbot,
     IconMicrophone,
     IconPlayerStopFilled,
     IconPlus,
+    IconUsers,
     IconX,
 } from '@tabler/icons-react';
+import { JoinMeetingDialog } from '@/components/meetings/join-meeting-dialog';
 import { MeetingList } from '@/components/meetings/meeting-list';
+import { MembersDialog } from '@/components/meetings/members-dialog';
 import { StartMeetingDialog } from '@/components/meetings/start-meeting-dialog';
 import { StatusChip } from '@/components/meetings/status-chip';
 import { TranscriptView } from '@/components/meetings/transcript-view';
@@ -27,6 +32,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { AppSidebar, AppSidebarInset } from '@/layout/sidebar';
 import { OpenChatMenu } from '@/components/meetings/open-chat-menu';
 import { startMeetingChat } from '@/lib/meeting-chat-actions';
+import { inviteInbox, usePendingInvite } from '@/lib/invite-inbox';
 import { transcriptStore, useMeetings } from '@/lib/transcript-client';
 
 export const Route = createFileRoute('/meetings')({
@@ -52,10 +58,25 @@ function MeetingsPage() {
     const state = useMeetings();
     const [startOpen, setStartOpen] = useState(false);
     const [endOpen, setEndOpen] = useState(false);
+    const [joinOpen, setJoinOpen] = useState(false);
+    const [joinLink, setJoinLink] = useState('');
+    // A meeting link that opened the app is offered here, never joined on its own: joining
+    // shares the microphone, which the person should agree to first.
+    const pendingInvite = usePendingInvite();
+    useEffect(() => {
+        if (!pendingInvite) return;
+        setJoinLink(pendingInvite);
+        setJoinOpen(true);
+        inviteInbox.clear();
+    }, [pendingInvite]);
+    const [membersOpen, setMembersOpen] = useState(false);
+    const [leaveOpen, setLeaveOpen] = useState(false);
     const [chatStarting, setChatStarting] = useState(false);
     const [chatError, setChatError] = useState<string | null>(null);
     const navigate = useNavigate();
-    const { meeting, runningHere } = state;
+    const { meeting, runningHere, speakingHere } = state;
+    const isOwner = meeting?.role === 'owner';
+    const isParticipant = meeting?.role === 'participant';
 
     const startChat = async () => {
         if (!meeting || chatStarting) return;
@@ -84,8 +105,25 @@ function MeetingsPage() {
                     <SidebarTrigger />
                     <h1 className="text-base font-semibold">Meetings</h1>
                     <div className="ml-auto flex items-center gap-2">
-                        {meeting && <OpenChatMenu key={meeting.id} meeting={meeting} />}
-                        {meeting?.status === 'live' && (
+                        {meeting && isOwner && <OpenChatMenu key={meeting.id} meeting={meeting} />}
+                        {meeting && (isParticipant || (isOwner && meeting.status !== 'ended')) && (
+                            <Button variant="outline" size="sm" onClick={() => setMembersOpen(true)}>
+                                <IconUsers className="mr-1 size-4" />
+                                {isOwner ? 'Invite people' : 'People'}
+                            </Button>
+                        )}
+                        {isParticipant && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={state.ending}
+                                onClick={() => setLeaveOpen(true)}
+                            >
+                                {state.ending ? <Spinner className="mr-2 size-4" /> : <IconDoorExit className="mr-1 size-4" />}
+                                Leave
+                            </Button>
+                        )}
+                        {isOwner && meeting.status === 'live' && (
                             <Button variant="outline" size="sm" disabled={chatStarting} onClick={() => void startChat()}>
                                 {chatStarting ? <Spinner className="mr-2 size-4" /> : <IconMessageChatbot className="mr-1 size-4" />}
                                 Start chat
@@ -103,10 +141,23 @@ function MeetingsPage() {
                                 {state.ending ? 'Ending…' : 'End meeting'}
                             </Button>
                         ) : (
-                            <Button size="sm" disabled={state.starting} onClick={() => setStartOpen(true)}>
-                                <IconPlus className="mr-1 size-4" />
-                                Start meeting
-                            </Button>
+                            !speakingHere && (
+                                <>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={state.starting || state.joining}
+                                        onClick={() => setJoinOpen(true)}
+                                    >
+                                        <IconLink className="mr-1 size-4" />
+                                        Join meeting
+                                    </Button>
+                                    <Button size="sm" disabled={state.starting || state.joining} onClick={() => setStartOpen(true)}>
+                                        <IconPlus className="mr-1 size-4" />
+                                        Start meeting
+                                    </Button>
+                                </>
+                            )
                         )}
                     </div>
                 </div>
@@ -161,8 +212,13 @@ function MeetingsPage() {
                                         </div>
                                     </div>
                                     <StatusChip meeting={meeting} status={state.status} />
+                                    {isParticipant && (
+                                        <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                                            Participant
+                                        </span>
+                                    )}
                                     {state.micActive && <MicMeter level={state.micLevel} />}
-                                    {!runningHere && (
+                                    {!runningHere && !speakingHere && (
                                         <Button
                                             variant="ghost"
                                             size="icon"
@@ -213,23 +269,68 @@ function MeetingsPage() {
                                 <IconMicrophone className="size-10 text-muted-foreground" />
                                 <h2 className="text-lg font-semibold">No meeting open</h2>
                                 <p className="max-w-sm text-sm text-muted-foreground">
-                                    Start a meeting to see its live transcript, or pick a recent one from the list.
+                                    Start a meeting to see its live transcript, or pick a recent one from the list. Once a
+                                    meeting is open, use Invite people to get a link for others to join.
                                 </p>
                                 {state.error && (
                                     <Alert variant="destructive" className="max-w-sm">
                                         <AlertDescription>{state.error}</AlertDescription>
                                     </Alert>
                                 )}
-                                <Button disabled={state.starting} onClick={() => setStartOpen(true)}>
-                                    <IconPlus className="mr-1 size-4" />
-                                    Start meeting
-                                </Button>
+                                <div className="flex gap-2">
+                                    <Button variant="outline" disabled={state.joining} onClick={() => setJoinOpen(true)}>
+                                        <IconLink className="mr-1 size-4" />
+                                        Join meeting
+                                    </Button>
+                                    <Button disabled={state.starting || state.joining} onClick={() => setStartOpen(true)}>
+                                        <IconPlus className="mr-1 size-4" />
+                                        Start meeting
+                                    </Button>
+                                </div>
                             </div>
                         )}
                     </section>
                 </div>
 
                 <StartMeetingDialog open={startOpen} onOpenChange={setStartOpen} state={state} />
+                <JoinMeetingDialog open={joinOpen} onOpenChange={setJoinOpen} state={state} initialLink={joinLink} />
+                {meeting && (
+                    <MembersDialog
+                        key={meeting.id}
+                        open={membersOpen}
+                        onOpenChange={setMembersOpen}
+                        meeting={meeting}
+                        canManage={isOwner}
+                    />
+                )}
+
+                <Dialog open={leaveOpen} onOpenChange={setLeaveOpen}>
+                    <DialogContent className="max-w-sm">
+                        <DialogHeader>
+                            <DialogTitle>Leave this meeting?</DialogTitle>
+                            <DialogDescription>
+                                {meeting?.status === 'ended'
+                                    ? 'It disappears from your list. What you said stays in its transcript.'
+                                    : 'Your microphone stops and you stop receiving the transcript. What you already said stays in it. You need a new link, or the same one if it still works, to come back.'}
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setLeaveOpen(false)}>
+                                Stay
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                className="text-white"
+                                onClick={() => {
+                                    setLeaveOpen(false);
+                                    void transcriptStore.leaveMeeting();
+                                }}
+                            >
+                                Leave meeting
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
                 <Dialog open={endOpen} onOpenChange={setEndOpen}>
                     <DialogContent className="max-w-sm">

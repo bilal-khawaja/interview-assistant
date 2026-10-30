@@ -14,6 +14,8 @@ export interface AudioUplinkOptions {
 }
 
 const OPEN = 1;
+/** The backend closes the socket with this when the account was removed from, or left, the meeting. */
+const ACCESS_REVOKED = 4403;
 const DEFAULT_MAX_QUEUED_BYTES = 16_000 * 2 * 10; // ten seconds of 16 kHz PCM16
 const DEFAULT_BASE_MS = 250;
 const DEFAULT_MAX_MS = 3_000;
@@ -119,6 +121,10 @@ export class AudioUplink {
     socket.onclose = (event) => {
       if (this.socket !== socket) return;
       this.socket = null;
+      if (event.code === ACCESS_REVOKED) {
+        this.close();
+        return;
+      }
       if (!this.closed) this.retry(`audio connection closed (${event.code})`);
     };
     socket.onerror = () => {

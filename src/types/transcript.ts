@@ -28,10 +28,13 @@ export interface TranscriptSegment {
 
 export type MeetingStatus = 'created' | 'live' | 'ended';
 export type MeetingSource = 'youtube' | 'live';
+/** How the signed-in account relates to a meeting: it started it, or joined it through an invite link. */
+export type MeetingRole = 'owner' | 'participant';
 
 export interface Meeting {
   id: string;
   title: string;
+  role: MeetingRole;
   status: MeetingStatus;
   /** What the meeting transcribes while it runs on the server, otherwise null. */
   source: MeetingSource | null;
@@ -51,8 +54,9 @@ export type StartMeetingInput =
  * - degraded: connected, but the server cannot read its database right now
  * - reconnecting: connection lost, retrying with the last sequence number
  * - ended: the meeting is over and everything was delivered
+ * - removed: the owner took this account out of the meeting; nothing more arrives
  */
-export type StreamStatus = 'connecting' | 'live' | 'degraded' | 'reconnecting' | 'ended';
+export type StreamStatus = 'connecting' | 'live' | 'degraded' | 'reconnecting' | 'ended' | 'removed';
 
 export interface TranscriptStatusEvent {
   meetingId: string;
@@ -72,6 +76,36 @@ export interface TranscriptResetEvent {
 
 export interface MeetingChangedEvent {
   meeting: Meeting;
+}
+
+/** A link the owner has made. The token itself is shown once, when it is created. */
+export interface MeetingInvite {
+  id: string;
+  expiresAt: string;
+  maxUses: number | null;
+  useCount: number;
+  createdAt: string;
+}
+
+export interface CreatedInvite extends MeetingInvite {
+  token: string;
+  /** What to hand out: the app's join link with the token on the end. */
+  url: string;
+}
+
+export interface CreateInviteInput {
+  expiresInMinutes: number;
+  maxUses?: number | null;
+}
+
+/** Someone in a meeting: the host first, then everyone who joined through a link. */
+export interface MeetingMember {
+  userId: string;
+  name: string;
+  /** Only the host is told other people's addresses. */
+  email?: string;
+  role: 'owner' | 'participant';
+  joinedAt: string;
 }
 
 export type ApiResult<T> = ({ error?: undefined } & T) | { error: string; status?: number; meetingId?: string };

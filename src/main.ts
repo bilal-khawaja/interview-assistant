@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { app, BrowserWindow, globalShortcut, safeStorage, session } from 'electron';
+import { app, BrowserWindow, clipboard, globalShortcut, safeStorage, session } from 'electron';
 import path from 'node:path';
 import dns from 'node:dns';
 
@@ -26,6 +26,9 @@ import { BackendApi } from './transcript/services/backend-api.client';
 import { MeetingService } from './transcript/services/meeting.service';
 import { createTranscriptRouter } from './transcript/controllers/transcript.router';
 import { createMeetingChatRouter } from './transcript/controllers/meeting-chat.router';
+import type { TranscriptRendererHandlers } from './transcript/controllers/transcript.handlers';
+import { APP_PROTOCOL, findJoinUrl } from './transcript/deep-link';
+import { DeepLinkInbox } from './transcript/services/deep-link-inbox';
 import { MeetingChatService } from './transcript/services/meeting-chat.service';
 import { DEFAULT_BACKEND_URL } from './transcript/backend-url';
 import { AuthService } from './auth/auth.service';
@@ -34,6 +37,21 @@ import { SafeStorageTokenStore } from './auth/token-store';
 import { createUpdateWindow, createPillWindow, positionPillTopCenter, PILL_WIDTH } from './window/window.settings';
 
 app.setName('System Container');
+
+// A meeting link opens this app, so only one copy may run: a second launch (which is how
+// Windows and Linux deliver a clicked link) hands its link to the first and exits.
+const deepLinks = new DeepLinkInbox();
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) app.quit();
+
+if (process.defaultApp && process.argv[1]) {
+  // Running from source, the operating system must be told to start electron with the app path.
+  app.setAsDefaultProtocolClient(APP_PROTOCOL, process.execPath, [path.resolve(process.argv[1])]);
+} else {
+  app.setAsDefaultProtocolClient(APP_PROTOCOL);
+}
+const coldStartLink = findJoinUrl(process.argv);
+if (coldStartLink) deepLinks.receive(coldStartLink);
 
 // Handle Squirrel events on Windows (install/update/uninstall)
 if (started) {
@@ -154,9 +172,9 @@ const router = {
     ...createAiChatRouter(aiChatService),
     ...createAiRealtimeRouter(aiRealtimeService),
   },
-  window: createWindowRouter(applyClickThrough, applyOpacity, resizePill, hidePill),
+  window: createWindowRouter(applyClickThrough, applyOpacity, resizePill, hidePill, (text) => clipboard.writeText(text)),
   update: createUpdateRouter(() => updateWindow),
-  transcript: createTranscriptRouter(meetingService),
+  transcript: createTranscriptRouter(meetingService, deepLinks),
   meetingChat: createMeetingChatRouter(meetingChatService),
   auth: createAuthRouter(authService),
   // upgrade: createUpgradeRouter(() => upgradeWindow),
@@ -173,6 +191,9 @@ updateElectronApp({
 });
 
 app.whenReady().then(async () => {
+  // A second copy was started only to hand its link over; the first one carries on.
+  if (!gotLock) return;
+
   // Realtime voice chat needs the mic (getUserMedia) — Electron denies media
   // permission requests by default unless explicitly allowed here.
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
@@ -253,6 +274,30 @@ app.whenReady().then(async () => {
   if (!globalShortcut.register('CommandOrControl+Q', () => app.quit())) {
     console.error('Failed to register CommandOrControl+Q shortcut.');
   }
+});
+
+// A link clicked while the app is running: Windows and Linux start a second copy with the link in
+// its arguments, macOS raises open-url. Either way the window comes forward and is told, and the
+// invite also waits in the inbox in case the window is still loading and misses the push.
+const revealForInvite = () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+};
+deepLinks.onToken((token) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  revealForInvite();
+  getRendererHandlers<TranscriptRendererHandlers>(mainWindow.webContents).onInviteLink.send({ token });
+});
+app.on('second-instance', (_event, argv) => {
+  const link = findJoinUrl(argv);
+  if (link) deepLinks.receive(link);
+  else revealForInvite();
+});
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  deepLinks.receive(url);
 });
 
 app.on('will-quit', () => {

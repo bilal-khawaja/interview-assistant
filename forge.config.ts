@@ -11,6 +11,8 @@ const config: ForgeConfig = {
     name: 'System Container',
     executableName: 'systemcontainer', // Task manager process name
     appBundleId: 'com.system.container',
+    // Lets meeting links (interview-assistant://join/…) open the packaged app on macOS.
+    protocols: [{ name: 'Meeting link', schemes: ['interview-assistant'] }],
     // Windows Metadata for Task Manager disguise
     win32metadata: {
       FileDescription: 'System Container',

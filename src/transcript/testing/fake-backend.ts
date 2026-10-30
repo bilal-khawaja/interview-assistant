@@ -21,6 +21,14 @@ export class FakeBackend {
   readonly chatPosts: { chatId: string; messageId: string; text: string; mode: string }[] = [];
   /** Chat stream sockets opened, with the resume point each asked for. */
   chatStreamOpens: { chatId: string; after: number }[] = [];
+  /** Invite tokens the fake accepts, by the meeting they open. */
+  readonly invites = new Map<string, string>();
+  /** Meetings the caller joined through a link, so they read as role "participant". */
+  readonly participantIn = new Set<string>();
+  /** Meetings the owner removed the caller from: they answer 404 from then on. */
+  readonly removedFrom = new Set<string>();
+  /** Meeting ids the caller left, in order. */
+  leaves: string[] = [];
   heartbeatMs = 60_000;
   /** Sent right after "ready" on every stream connection (tests inject frames here). */
   afterReady: ((ws: Bun.ServerWebSocket<SocketData>) => void) | null = null;
@@ -88,6 +96,7 @@ export class FakeBackend {
     const meeting: Meeting = {
       id,
       title: 'test',
+      role: 'owner',
       status: 'live',
       source: null,
       startedAt: new Date().toISOString(),
@@ -168,6 +177,18 @@ export class FakeBackend {
 
   broadcastChat(frame: unknown): void {
     for (const ws of this.chatSockets) ws.send(JSON.stringify(frame));
+  }
+
+  /** The meeting as the caller sees it. */
+  private view(meeting: Meeting): Meeting {
+    return this.participantIn.has(meeting.id) ? { ...meeting, role: 'participant' } : meeting;
+  }
+
+  /** The owner takes the caller out of the meeting. */
+  removeParticipant(meetingId: string): void {
+    this.participantIn.delete(meetingId);
+    this.removedFrom.add(meetingId);
+    for (const ws of [...this.streams, ...this.audios]) if (ws.data.meetingId === meetingId) ws.close(4403, 'removed from meeting');
   }
 
   end(meetingId: string): void {
@@ -335,8 +356,24 @@ export class FakeBackend {
       if (url.pathname === '/me') return json(this.userOf(token));
     }
 
+    if (url.pathname === '/invites/redeem' && req.method === 'POST') {
+      const body = (await req.json().catch(() => ({}))) as { token?: string };
+      const meetingId = body.token ? this.invites.get(body.token) : undefined;
+      const joined = meetingId ? this.meetings.get(meetingId) : undefined;
+      if (!joined || joined.status === 'ended') return json({ error: 'not found' }, 404);
+      this.removedFrom.delete(joined.id);
+      this.participantIn.add(joined.id);
+      return json(this.view(joined));
+    }
+
     if (parts[0] === 'meetings') {
       const id = parts[1];
+      if (id && this.removedFrom.has(id) && !this.participantIn.has(id)) return json({ error: 'not found' }, 404);
+      if (id && parts[2] === 'leave' && req.method === 'POST') {
+        if (!this.participantIn.delete(id)) return json({ error: 'not found' }, 404);
+        this.leaves.push(id);
+        return new Response(null, { status: 204 });
+      }
       if (id && parts[2] === 'chats' && this.meetings.has(id)) return this.handleChats(req, server, url, id, parts);
       if (!id && req.method === 'GET') {
         return json({ meetings: [...this.meetings.values()].reverse() });
@@ -350,7 +387,7 @@ export class FakeBackend {
       }
       const meeting = id ? this.meetings.get(id) : undefined;
       if (id && !parts[2] && req.method === 'GET') {
-        return meeting ? json(meeting) : json({ error: 'not found' }, 404);
+        return meeting ? json(this.view(meeting)) : json({ error: 'not found' }, 404);
       }
       if (parts[2] === 'end' && req.method === 'POST') {
         if (!meeting) return json({ error: 'not found' }, 404);

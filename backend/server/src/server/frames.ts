@@ -65,5 +65,7 @@ export type Frame =
   | RecoveredFrame;
 
 export const CLOSE_CURSOR_AHEAD = 4409;
+/** The caller's access to the meeting ended while the socket was open. */
+export const CLOSE_ACCESS_REVOKED = 4403;
 export const CLOSE_SLOW_CONSUMER = 1013;
 export const CLOSE_INTERNAL_ERROR = 1011;

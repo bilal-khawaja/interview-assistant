@@ -154,7 +154,33 @@ bun run scripts/stream-client.ts <meetingId>    # reconnecting client; --after N
 - Frames: `ready`, `segment`, `heartbeat`, `error`. A `segment` carries the raw
   `speakerKey` plus a resolved `speaker` (role, label, name, organization, job title)
   when a participant is bound to that key. Email and phone are never sent.
-- Close codes: `4409` cursor is ahead of the log head (reset your cursor), `1013` the
-  client could not keep up, `1011` server error.
+- Close codes: `4409` cursor is ahead of the log head (reset your cursor), `4403` the
+  account was removed from the meeting or left it, `1013` the client could not keep up,
+  `1011` server error.
 - Every tab on a meeting subscribes to the same stream, and each resumes from its own
   `after`.
+
+## Inviting other accounts
+
+The owner of a meeting hands out links; an account that redeems one becomes a `participant`
+of that meeting. A link alone grants nothing: redeeming needs a signed-in account.
+
+| Route | Who | |
+| --- | --- | --- |
+| `POST /meetings/:id/invites` `{expiresInMinutes, maxUses?}` | owner | returns `token` and `url` once; only a hash is stored |
+| `GET /meetings/:id/invites`, `DELETE /meetings/:id/invites/:inviteId` | owner | active links, revoke |
+| `GET /meetings/:id/members` | owner or participant | everyone in the meeting, host first; email addresses only for the owner |
+| `DELETE /meetings/:id/members/:userId` | owner | remove (closes their sockets with `4403`) |
+| `POST /invites/redeem` `{token}` | any account | joins; rate limited per account |
+| `POST /meetings/:id/leave` | participant | leaves |
+
+- Every failed redeem (unknown, expired, revoked, used up, meeting ended, removed since)
+  answers the same `404`. Redeeming again, or as the owner, costs no use. A member the owner
+  removed needs a link made after the removal; one who left can use the same link again.
+- A participant reads the meeting and its transcript stream, and speaks into it through
+  `/meetings/:id/audio`. Ending the meeting, links, members and chats stay owner-only.
+- Each microphone is its own Deepgram stream, tagged `user:<userId>` and named through
+  `meeting_participants`, and joins the shared timeline at the time it connected. A person
+  has one open microphone across all meetings, and a meeting takes at most 6 (owner included).
+- `INVITE_LINK_PREFIX` is what the token is appended to in `url`
+  (default `interview-assistant://join/`, the scheme the desktop app registers).

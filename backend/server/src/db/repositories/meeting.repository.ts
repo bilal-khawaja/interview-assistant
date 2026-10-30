@@ -1,14 +1,18 @@
-import { and, asc, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, ne, or, type SQL } from "drizzle-orm";
 import type { Executor } from "../client";
 import {
   chatBudget,
   chats,
+  meetingMembers,
   meetings,
   type Chat,
   type Meeting,
   type MeetingStatus,
 } from "../schema";
 import { BaseRepository, MutableRepository } from "./base.repository";
+
+export type MeetingRole = "owner" | "participant";
+export type AccessibleMeeting = Meeting & { role: MeetingRole };
 
 export class MeetingRepository extends MutableRepository<typeof meetings> {
   constructor(db: Executor) {
@@ -34,6 +38,38 @@ export class MeetingRepository extends MutableRepository<typeof meetings> {
   /** The meeting if it exists and belongs to the user; null otherwise, so callers cannot tell the two apart. */
   findOwned(id: string, userId: string): Promise<Meeting | null> {
     return this.findOne(and(eq(meetings.id, id), eq(meetings.userId, userId))!);
+  }
+
+  /**
+   * The meeting if the user owns it or is an active member; null otherwise, so callers cannot
+   * tell a stranger's meeting from a missing one.
+   */
+  async findAccessible(id: string, userId: string): Promise<AccessibleMeeting | null> {
+    const rows = await this.accessible(userId, eq(meetings.id, id), 1);
+    return rows[0] ?? null;
+  }
+
+  /** Meetings the user owns or has joined, newest first. */
+  listAccessible(userId: string, limit = 50): Promise<AccessibleMeeting[]> {
+    return this.accessible(userId, undefined, limit);
+  }
+
+  private async accessible(userId: string, where: SQL | undefined, limit: number): Promise<AccessibleMeeting[]> {
+    const rows = await this.db
+      .select({ meeting: meetings })
+      .from(meetings)
+      .leftJoin(
+        meetingMembers,
+        and(
+          eq(meetingMembers.meetingId, meetings.id),
+          eq(meetingMembers.userId, userId),
+          isNull(meetingMembers.removedAt),
+        ),
+      )
+      .where(and(where, or(eq(meetings.userId, userId), isNotNull(meetingMembers.id))))
+      .orderBy(desc(meetings.createdAt))
+      .limit(limit);
+    return rows.map(({ meeting }) => ({ ...meeting, role: meeting.userId === userId ? "owner" : "participant" }));
   }
 
   /** The user's own meetings, newest first. */

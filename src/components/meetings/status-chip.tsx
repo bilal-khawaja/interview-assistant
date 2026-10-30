@@ -14,6 +14,8 @@ function describe(meeting: Meeting, status: StreamStatus | null): { label: strin
             return { label: 'Server catching up', tone: 'warn' };
         case 'reconnecting':
             return { label: 'Reconnecting…', tone: 'warn' };
+        case 'removed':
+            return { label: 'Removed', tone: 'bad' };
         case 'connecting':
         case null:
             return { label: 'Connecting…', tone: 'idle' };

@@ -34,6 +34,92 @@ const texts = () => events.flatMap((e) => (e.type === 'segment' ? [e.event.segme
 const statuses = () => events.flatMap((e) => (e.type === 'status' ? [e.event.status] : []));
 const audio = (fill: number) => new Uint8Array(3200).fill(fill);
 
+describe('MeetingService joining through a link', () => {
+  const TOKEN = 'k3J9_aZx-0pQwErTyUiOpAsDfGhJkLzXcVbNm12345A';
+  const shared = () => {
+    const meeting = backend.addMeeting({ title: 'theirs', source: 'live' });
+    backend.invites.set(TOKEN, meeting.id);
+    return meeting;
+  };
+
+  test('joining follows the transcript as a participant and carries this app\'s microphone', async () => {
+    const meeting = shared();
+    const joined = await service.join(TOKEN, true);
+    expect(joined).toMatchObject({ id: meeting.id, role: 'participant' });
+    expect(service.activeIsOwned).toBe(false);
+    expect(service.activeIsSpeaking).toBe(true);
+
+    await until(() => backend.streams.size === 1 && backend.audios.size === 1);
+    expect(service.sendAudio(audio(3))).toBe(true);
+    await until(() => backend.audioFrames.length === 1);
+    backend.push(meeting.id, 'from the host');
+    await until(() => texts().length === 1);
+  });
+
+  test('joining to listen only opens no audio path', async () => {
+    shared();
+    await service.join(TOKEN, false);
+    await until(() => backend.streams.size === 1);
+    expect(backend.audios.size).toBe(0);
+    expect(service.activeIsSpeaking).toBe(false);
+    expect(service.sendAudio(audio(1))).toBe(false);
+  });
+
+  test('a link the backend does not know is refused and nothing is followed', async () => {
+    shared();
+    await expect(service.join('x'.repeat(43), true)).rejects.toMatchObject({ status: 404 });
+    expect(service.activeMeeting).toBeNull();
+  });
+
+  test('re-subscribing after a window reload keeps the role and the microphone link', async () => {
+    const meeting = shared();
+    await service.join(TOKEN, true);
+    await until(() => backend.audios.size === 1);
+    await service.subscribe(meeting.id);
+    expect(service.activeIsSpeaking).toBe(true);
+    await until(() => backend.audios.size >= 1 && backend.streams.size === 1);
+    expect(service.sendAudio(audio(1))).toBe(true);
+  });
+
+  test('leaving closes the microphone, tells the backend and stops following', async () => {
+    const meeting = shared();
+    await service.join(TOKEN, true);
+    await until(() => backend.audios.size === 1);
+    await service.leave(meeting.id);
+    expect(backend.leaves).toEqual([meeting.id]);
+    expect(service.activeMeeting).toBeNull();
+    await until(() => backend.audios.size === 0 && backend.streams.size === 0);
+  });
+
+  test('leaving a meeting the account is already out of is not an error', async () => {
+    const meeting = shared();
+    await service.join(TOKEN, false);
+    backend.removeParticipant(meeting.id);
+    await service.leave(meeting.id);
+    expect(service.activeMeeting).toBeNull();
+  });
+
+  test('being removed by the owner is reported once and everything is closed', async () => {
+    const meeting = shared();
+    await service.join(TOKEN, true);
+    await until(() => backend.audios.size === 1 && backend.streams.size === 1);
+    backend.removeParticipant(meeting.id);
+    await until(() => statuses().includes('removed'));
+    expect(statuses().filter((s) => s === 'removed')).toHaveLength(1);
+    expect(service.activeMeeting).toBeNull();
+    await until(() => backend.audios.size === 0 && backend.streams.size === 0);
+  });
+
+  test('the owner ending the meeting ends it for a participant too', async () => {
+    const meeting = shared();
+    await service.join(TOKEN, true);
+    await until(() => backend.streams.size === 1);
+    backend.end(meeting.id);
+    await until(() => statuses().includes('ended'));
+    expect(service.activeMeeting).toBeNull();
+  });
+});
+
 describe('MeetingService', () => {
   test('starting a live meeting follows its transcript and carries microphone audio', async () => {
     const meeting = await service.start({ source: 'live', title: 'mic' });

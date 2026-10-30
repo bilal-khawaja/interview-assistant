@@ -15,6 +15,8 @@ export const env = createEnv({
       .string()
       .default("interview-assistant://app")
       .transform((value) => value.split(",").map((origin) => origin.trim()).filter(Boolean)),
+    /** What an invite token is appended to in the link the owner copies. The desktop app registers this scheme. */
+    INVITE_LINK_PREFIX: z.string().min(1).default("interview-assistant://join/"),
     YOUTUBE_URL: z.url().default("https://www.youtube.com/watch?v=7ARBJQn6QkM"),
     PORT: z.coerce.number().int().min(0).max(65535).default(3000),
     STREAM_ANSWER: z
@@ -34,6 +36,7 @@ export const env = createEnv({
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
     AUTH_TRUSTED_ORIGINS: process.env.AUTH_TRUSTED_ORIGINS,
+    INVITE_LINK_PREFIX: process.env.INVITE_LINK_PREFIX,
     YOUTUBE_URL: process.env.YOUTUBE_URL,
     PORT: process.env.PORT,
     STREAM_ANSWER: process.env.STREAM_ANSWER,

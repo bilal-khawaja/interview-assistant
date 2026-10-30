@@ -1,6 +1,10 @@
 import type {
+  CreatedInvite,
+  CreateInviteInput,
   Meeting,
   MeetingChangedEvent,
+  MeetingInvite,
+  MeetingMember,
   StartMeetingInput,
   StreamStatus,
   TranscriptResetEvent,
@@ -9,7 +13,7 @@ import type {
 } from '../../types/transcript';
 import { normalizeBackendUrl } from '../backend-url';
 import { AudioUplink, type AudioUplinkOptions } from './audio-uplink';
-import { BackendApi } from './backend-api.client';
+import { BackendApi, BackendApiError } from './backend-api.client';
 import { TranscriptStreamClient, type StreamClientOptions } from './transcript-stream.client';
 
 export type TranscriptEvent =
@@ -35,6 +39,8 @@ interface Current {
   meeting: Meeting;
   /** Started by this app, so quitting the app ends it. */
   owned: boolean;
+  /** Someone else's meeting whose microphone this app feeds. */
+  speaking: boolean;
   stream: TranscriptStreamClient;
   uplink: AudioUplink | null;
   poll: ReturnType<typeof setInterval>;
@@ -82,6 +88,11 @@ export class MeetingService {
     return this.current?.owned === true;
   }
 
+  /** Whether this app sends its microphone into a meeting somebody else started. */
+  get activeIsSpeaking(): boolean {
+    return this.current?.speaking === true;
+  }
+
   health(): Promise<void> {
     return this.api.health();
   }
@@ -100,10 +111,54 @@ export class MeetingService {
   /** Follows an existing meeting's transcript from its first segment. */
   async subscribe(meetingId: string): Promise<Meeting> {
     const meeting = await this.api.getMeeting(meetingId);
-    const owned = this.current?.meeting.id === meetingId && this.current.owned;
-    const audio = owned && this.current?.uplink !== null;
-    this.open(meeting, { owned, audio: audio === true });
+    const same = this.current?.meeting.id === meetingId ? this.current : null;
+    // A window that reloads picks the meeting up again with the same role and microphone link.
+    this.open(meeting, { owned: same?.owned === true, audio: same !== null && same.uplink !== null });
     return meeting;
+  }
+
+  /**
+   * Joins the meeting an invite link belongs to and follows it. With `speak`, and while the
+   * meeting is live, this app's microphone is sent into it too.
+   */
+  async join(token: string, speak: boolean): Promise<Meeting> {
+    const meeting = await this.api.redeemInvite(token);
+    const audio = meeting.role === 'participant' && speak && meeting.status === 'live' && meeting.source === 'live';
+    this.open(meeting, { owned: meeting.role === 'owner', audio });
+    return meeting;
+  }
+
+  /** Leaves a meeting joined through a link. The owner cannot leave, only end it. */
+  async leave(meetingId: string): Promise<void> {
+    const current = this.current?.meeting.id === meetingId ? this.current : null;
+    current?.uplink?.close();
+    try {
+      await this.api.leaveMeeting(meetingId);
+    } catch (error) {
+      // Already out (removed, or the meeting is gone): the aim is reached.
+      if (!(error instanceof BackendApiError && error.status === 404)) throw error;
+    }
+    if (current && !current.closed) this.closeCurrent();
+  }
+
+  createInvite(meetingId: string, input: CreateInviteInput): Promise<CreatedInvite> {
+    return this.api.createInvite(meetingId, input);
+  }
+
+  listInvites(meetingId: string): Promise<MeetingInvite[]> {
+    return this.api.listInvites(meetingId);
+  }
+
+  revokeInvite(meetingId: string, inviteId: string): Promise<void> {
+    return this.api.revokeInvite(meetingId, inviteId);
+  }
+
+  listMembers(meetingId: string): Promise<MeetingMember[]> {
+    return this.api.listMembers(meetingId);
+  }
+
+  removeMember(meetingId: string, userId: string): Promise<void> {
+    return this.api.removeMember(meetingId, userId);
   }
 
   unsubscribe(): void {
@@ -190,6 +245,7 @@ export class MeetingService {
     const current: Current = {
       meeting,
       owned,
+      speaking: !owned && uplink !== null,
       stream,
       uplink,
       poll: setInterval(() => void this.refresh(current), this.options.pollMs ?? DEFAULT_POLL_MS),
@@ -217,8 +273,13 @@ export class MeetingService {
       current.meeting = meeting;
       if (changed) this.emit({ type: 'meeting', event: { meeting } });
       if (meeting.status === 'ended') void this.finish(current);
-    } catch {
-      // the backend is unreachable; the stream reports that, and polling continues
+    } catch (error) {
+      // The meeting is gone from this account's view: the owner removed it. Stop following it.
+      if (error instanceof BackendApiError && error.status === 404 && !current.owned) {
+        this.emit({ type: 'status', event: { meetingId: current.meeting.id, status: 'removed' } });
+        this.closeCurrent();
+      }
+      // Otherwise the backend is unreachable; the stream reports that, and polling continues.
     }
   }
 

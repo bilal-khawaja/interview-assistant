@@ -121,7 +121,7 @@ function LoginPage() {
                                     type="button"
                                     variant="ghost"
                                     size="icon"
-                                    className="absolute right-0 top-0 size-9 text-muted-foreground"
+                                    className="absolute right-0 top-0 text-muted-foreground"
                                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                                     aria-pressed={showPassword}
                                     onClick={() => setShowPassword((v) => !v)}

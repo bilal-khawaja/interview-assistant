@@ -1,3 +1,4 @@
+import { parseInviteToken } from './invite-link';
 import type {
   ApiResult,
   Meeting,
@@ -15,8 +16,10 @@ export interface TranscriptApi {
   configure(backendUrl: string): Promise<ApiResult<{ url: string }>>;
   health(): Promise<ApiResult<{ ok: true }>>;
   list(): Promise<ApiResult<{ meetings: Meeting[] }>>;
-  active(): Promise<{ meeting: Meeting | null; owned: boolean }>;
+  active(): Promise<{ meeting: Meeting | null; owned: boolean; speaking: boolean }>;
   start(input: StartMeetingInput): Promise<ApiResult<{ meeting: Meeting }>>;
+  join(token: string, speak: boolean): Promise<ApiResult<{ meeting: Meeting }>>;
+  leave(meetingId: string): Promise<ApiResult<{ ok: true }>>;
   end(meetingId: string): Promise<ApiResult<{ meeting: Meeting }>>;
   subscribe(meetingId: string): Promise<ApiResult<{ meeting: Meeting }>>;
   unsubscribe(): Promise<unknown>;
@@ -56,7 +59,10 @@ export interface MeetingsState {
   detail: string | null;
   /** This window started a meeting that is still running. */
   runningHere: boolean;
+  /** This window sends its microphone into a meeting somebody else started. */
+  speakingHere: boolean;
   starting: boolean;
+  joining: boolean;
   ending: boolean;
   error: string | null;
   micActive: boolean;
@@ -87,7 +93,9 @@ const initialState = (backendUrl: string): MeetingsState => ({
   status: null,
   detail: null,
   runningHere: false,
+  speakingHere: false,
   starting: false,
+  joining: false,
   ending: false,
   error: null,
   micActive: false,
@@ -167,7 +175,7 @@ export class TranscriptStore {
     await this.checkBackend();
     const active = await this.api.active();
     if (active.meeting && active.meeting.status !== 'ended') {
-      await this.resume(active.meeting, active.owned);
+      await this.resume(active.meeting, active.owned, active.speaking);
     }
     await this.refreshMeetings();
   }
@@ -197,14 +205,21 @@ export class TranscriptStore {
   }
 
   /** A reloaded window re-attaches to the running meeting and restarts its microphone. */
-  private async resume(meeting: Meeting, owned: boolean): Promise<void> {
-    this.set({ meeting, segments: [], status: null, detail: null, runningHere: owned && meeting.status === 'live' });
+  private async resume(meeting: Meeting, owned: boolean, speaking: boolean): Promise<void> {
+    this.set({
+      meeting,
+      segments: [],
+      status: null,
+      detail: null,
+      runningHere: owned && meeting.status === 'live',
+      speakingHere: speaking && meeting.status === 'live',
+    });
     const result = await this.api.subscribe(meeting.id);
     if (result.error !== undefined) {
       this.set({ error: result.error });
       return;
     }
-    if (owned && meeting.source === 'live' && meeting.status === 'live') {
+    if ((owned || speaking) && meeting.source === 'live' && meeting.status === 'live') {
       await this.startMic(this.savedMicDeviceId, () => true, []);
     }
   }
@@ -256,7 +271,7 @@ export class TranscriptStore {
   // --- meeting actions ---
 
   async startMeeting(input: StartMeetingInput, micDeviceId?: string): Promise<boolean> {
-    if (this.state.starting || this.state.runningHere) return false;
+    if (this.state.starting || this.state.runningHere || this.state.speakingHere || this.state.joining) return false;
     this.set({ starting: true, error: null });
 
     // The microphone opens first, so a denied permission or missing device fails before any
@@ -307,9 +322,109 @@ export class TranscriptStore {
     void this.refreshMeetings();
   }
 
-  /** Shows a stored or finished meeting. Not allowed while this window is running one. */
+  /**
+   * Joins a meeting through an invite link. With `speak` the microphone opens first, as when
+   * starting a meeting, so a denied permission fails before anything is joined. Returns
+   * whether the meeting was joined; the reason is in `error` otherwise.
+   */
+  async joinMeeting(link: string, { speak, micDeviceId }: { speak: boolean; micDeviceId?: string }): Promise<boolean> {
+    const state = this.state;
+    if (state.joining || state.starting) return false;
+    if (state.runningHere || state.speakingHere) {
+      this.set({ error: 'Leave or end your current meeting before joining another.' });
+      return false;
+    }
+    const token = parseInviteToken(link);
+    if (!token) {
+      this.set({ error: 'That does not look like a meeting link. Paste the whole link you were sent.' });
+      return false;
+    }
+    this.set({ joining: true, error: null });
+
+    const prebuffer: Uint8Array[] = [];
+    let ready = false;
+    if (speak) {
+      if (micDeviceId) this.writeStorage(MIC_DEVICE_KEY, micDeviceId);
+      if (!(await this.startMic(micDeviceId, () => ready, prebuffer))) {
+        this.set({ joining: false });
+        return false;
+      }
+    }
+
+    let result: ApiResult<{ meeting: Meeting }>;
+    try {
+      result = await this.api.join(token, speak);
+    } catch (error) {
+      // The main process did not answer: typically an old one that has not been restarted.
+      this.stopMic();
+      this.set({
+        joining: false,
+        error: `Could not join. Quit the app completely and start it again. (${error instanceof Error ? error.message : String(error)})`,
+      });
+      return false;
+    }
+    if (result.error !== undefined) {
+      this.stopMic();
+      this.set({
+        joining: false,
+        error:
+          result.status === 404
+            ? 'This invite link is invalid, has expired, or is no longer available.'
+            : result.status === 429
+              ? 'Too many attempts. Wait a minute and try again.'
+              : result.error,
+      });
+      return false;
+    }
+
+    const { meeting } = result;
+    if (meeting.role === 'owner') {
+      // The link belongs to this account's own meeting (typically the same account is signed in
+      // on both apps). Nothing was joined, so let go of it rather than follow it as a second view.
+      this.stopMic();
+      if (!this.state.runningHere) await this.api.unsubscribe();
+      this.set({
+        joining: false,
+        error: 'This is your own meeting, so you are already its host. Sign in as another account to join it.',
+      });
+      return false;
+    }
+    const speaking = speak && meeting.status === 'live' && meeting.source === 'live';
+    ready = true;
+    if (speaking) for (const chunk of prebuffer) void this.api.sendAudio(chunk).catch(() => undefined);
+    else this.stopMic();
+    prebuffer.length = 0;
+    this.set({
+      joining: false,
+      meeting,
+      segments: [],
+      status: null,
+      detail: null,
+      speakingHere: speaking,
+    });
+    void this.refreshMeetings();
+    return true;
+  }
+
+  /** Leaves the meeting on screen, which must be one joined through a link. */
+  async leaveMeeting(): Promise<void> {
+    const meeting = this.state.meeting;
+    if (!meeting || meeting.role !== 'participant' || this.state.ending) return;
+    this.set({ ending: true, error: null });
+    this.stopMic();
+    const result = await this.api.leave(meeting.id);
+    if (result.error !== undefined) {
+      this.set({ ending: false, error: result.error });
+      return;
+    }
+    await this.api.unsubscribe();
+    this.set({ ending: false, speakingHere: false, meeting: null, segments: [], status: null, detail: null });
+    void this.refreshMeetings();
+  }
+
+  /** Shows a stored or finished meeting. Not allowed while this window is running or speaking in one. */
   async openMeeting(meetingId: string): Promise<void> {
-    if (this.state.runningHere) return;
+    if (this.state.runningHere || this.state.speakingHere) return;
     this.set({ segments: [], status: null, detail: null, error: null });
     const epoch = this.epoch;
     const result = await this.api.subscribe(meetingId);
@@ -322,7 +437,7 @@ export class TranscriptStore {
   }
 
   async closeMeeting(): Promise<void> {
-    if (this.state.runningHere) return;
+    if (this.state.runningHere || this.state.speakingHere) return;
     await this.api.unsubscribe();
     this.set({ meeting: null, segments: [], status: null, detail: null });
   }
@@ -387,13 +502,28 @@ export class TranscriptStore {
         : {}),
     });
     if (status === 'ended') this.onMeetingOver(meetingId);
+    if (status === 'removed') this.onRemoved();
+  }
+
+  /** The owner took this account out of the meeting: let go of it and say why. */
+  private onRemoved(): void {
+    this.stopMic();
+    this.set({
+      meeting: null,
+      segments: [],
+      status: null,
+      detail: null,
+      speakingHere: false,
+      error: 'You were removed from this meeting.',
+    });
+    void this.refreshMeetings();
   }
 
   private onMeetingOver(meetingId: string): void {
     if (this.state.meeting?.id !== meetingId) return;
-    if (this.state.runningHere) {
+    if (this.state.runningHere || this.state.speakingHere) {
       this.stopMic();
-      this.set({ runningHere: false });
+      this.set({ runningHere: false, speakingHere: false });
     }
     void this.refreshMeetings();
   }

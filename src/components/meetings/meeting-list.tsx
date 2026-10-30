@@ -37,7 +37,10 @@ function MeetingRow({ meeting, selected, disabled }: { meeting: Meeting; selecte
                 />
                 <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{meeting.title || 'Untitled meeting'}</span>
-                    <span className="block text-xs text-muted-foreground">{when(meeting.startedAt ?? meeting.createdAt)}</span>
+                    <span className="block text-xs text-muted-foreground">
+                        {when(meeting.startedAt ?? meeting.createdAt)}
+                        {meeting.role === 'participant' && ' · Participant'}
+                    </span>
                 </span>
                 {meeting.source && <SourceIcon className="size-4 shrink-0 text-muted-foreground" />}
             </button>
@@ -46,7 +49,8 @@ function MeetingRow({ meeting, selected, disabled }: { meeting: Meeting; selecte
 }
 
 export function MeetingList({ state }: { state: MeetingsState }) {
-    const { meetings, listLoading, listError, runningHere, meeting } = state;
+    const { meetings, listLoading, listError, runningHere, speakingHere, meeting } = state;
+    const locked = runningHere || speakingHere;
     return (
         <div className="flex min-h-0 flex-col">
             <div className="flex items-center justify-between px-3 pb-2">
@@ -61,8 +65,10 @@ export function MeetingList({ state }: { state: MeetingsState }) {
                     <IconRefresh className={cn('size-4', listLoading && 'animate-spin')} />
                 </Button>
             </div>
-            {runningHere && (
-                <p className="px-3 pb-2 text-xs text-muted-foreground">End the live meeting to open another one.</p>
+            {locked && (
+                <p className="px-3 pb-2 text-xs text-muted-foreground">
+                    {runningHere ? 'End the live meeting to open another one.' : 'Leave the meeting to open another one.'}
+                </p>
             )}
             {listError && (
                 <Alert variant="destructive" className="mx-2 mb-2 w-auto">
@@ -93,7 +99,7 @@ export function MeetingList({ state }: { state: MeetingsState }) {
                         key={m.id}
                         meeting={m}
                         selected={meeting?.id === m.id}
-                        disabled={runningHere && meeting?.id !== m.id}
+                        disabled={locked && meeting?.id !== m.id}
                     />
                 ))}
             </ul>

@@ -2,8 +2,10 @@ import type { Hono } from "hono";
 import { upgradeWebSocket } from "hono/bun";
 import { z } from "zod";
 import { currentUserId } from "../auth/routes";
+import type { AccessibleMeeting } from "../db/repositories/meeting.repository";
 import type { Meeting } from "../db/schema";
 import type { StreamVariables } from "./app";
+import type { SocketRegistry } from "./socket-registry";
 import {
   MeetingAlreadyLiveError,
   MeetingRequestError,
@@ -12,7 +14,7 @@ import {
 
 export type MeetingApiDeps = Pick<
   MeetingController,
-  "start" | "end" | "list" | "get" | "sourceOf" | "audioInput"
+  "start" | "end" | "list" | "get" | "sourceOf" | "openAudio"
 >;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -34,9 +36,11 @@ const startBody = z.discriminatedUnion("source", [
   }),
 ]);
 
-export function meetingJson(meeting: Meeting, source: string | null) {
+export function meetingJson(meeting: Meeting | AccessibleMeeting, source: string | null) {
   return {
     id: meeting.id,
+    /** How the caller relates to the meeting; a meeting fetched without a caller in mind reads as the owner's. */
+    role: "role" in meeting ? meeting.role : "owner",
     title: meeting.title,
     status: meeting.status,
     /** What the meeting is transcribing while it runs on this server, otherwise null. */
@@ -51,6 +55,7 @@ export function meetingJson(meeting: Meeting, source: string | null) {
 export function mountMeetingRoutes(
   app: Hono<{ Variables: StreamVariables & Record<string, unknown> }>,
   deps: MeetingApiDeps,
+  sockets?: SocketRegistry,
 ): void {
   app.get("/meetings", async (c) => {
     const raw = c.req.query("limit");
@@ -95,24 +100,48 @@ export function mountMeetingRoutes(
     "/meetings/:id/audio",
     async (c, next) => {
       const id = c.req.param("id");
-      if (!UUID.test(id) || !(await deps.get(currentUserId(c), id))) return c.json({ error: "not found" }, 404);
-      if (!deps.audioInput(id)) return c.json({ error: "meeting is not taking live audio" }, 409);
+      const userId = currentUserId(c);
+      const opened = UUID.test(id) ? await deps.openAudio(userId, id) : ({ error: "not_found" } as const);
+      if ("error" in opened) {
+        const [status, message] = AUDIO_REFUSALS[opened.error];
+        return c.json({ error: message }, status);
+      }
       c.set("audioMeetingId", id);
+      c.set("audioUserId", userId);
+      c.set("audioInput", opened.input);
       await next();
     },
     upgradeWebSocket((c) => {
       const id = c.get("audioMeetingId");
+      const userId = c.get("audioUserId");
+      const input = c.get("audioInput");
+      let forget = () => {};
       return {
-        async onMessage(event) {
-          const input = deps.audioInput(id);
-          if (!input) return;
+        onOpen(_event, ws) {
+          forget = sockets?.add(id, userId, { close: (code, reason) => ws.close(code, reason) }) ?? forget;
+        },
+        async onMessage(event, ws) {
           const chunk = await toBytes(event.data);
-          if (chunk) input.push(chunk);
+          // The input ends with the meeting, or when this member is dropped or goes idle.
+          if (chunk && !input.push(chunk)) ws.close(1000, "audio ended");
+        },
+        onClose() {
+          forget();
+        },
+        onError() {
+          forget();
         },
       };
     }),
   );
 }
+
+const AUDIO_REFUSALS = {
+  not_found: [404, "not found"],
+  not_live: [409, "meeting is not taking live audio"],
+  full: [409, "meeting has no room for another microphone"],
+  busy: [409, "your microphone is in use in another meeting"],
+} as const;
 
 async function toBytes(data: unknown): Promise<Uint8Array | null> {
   if (data instanceof ArrayBuffer) return new Uint8Array(data);

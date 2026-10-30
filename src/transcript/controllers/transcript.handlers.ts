@@ -14,4 +14,6 @@ export type TranscriptRendererHandlers = {
   onTranscriptStatus: (data: TranscriptStatusEvent) => void;
   onTranscriptReset: (data: TranscriptResetEvent) => void;
   onMeetingChanged: (data: MeetingChangedEvent) => void;
+  /** The operating system opened the app with a meeting link. */
+  onInviteLink: (data: { token: string }) => void;
 };

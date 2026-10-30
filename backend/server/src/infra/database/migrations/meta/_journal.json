@@ -71,6 +71,20 @@
       "when": 1793187040535,
       "tag": "0009_meeting_owner",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793361247463,
+      "tag": "0010_meeting_invites_members",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793362546322,
+      "tag": "0011_participant_role",
+      "breakpoints": true
     }
   ]
 }

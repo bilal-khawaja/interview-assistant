@@ -1,7 +1,14 @@
 import { APP_ORIGIN } from '../../auth/constants';
 import type { AuthUser, SignInInput, SignUpInput } from '../../types/auth';
 import type { BackendChat, BackendChatMessage, SendMode } from '../../types/meeting-chat';
-import type { Meeting, StartMeetingInput } from '../../types/transcript';
+import type {
+  CreatedInvite,
+  CreateInviteInput,
+  Meeting,
+  MeetingInvite,
+  MeetingMember,
+  StartMeetingInput,
+} from '../../types/transcript';
 
 export class BackendApiError extends Error {
   constructor(
@@ -113,6 +120,44 @@ export class BackendApi {
     return this.request<Meeting>(`/meetings/${encodeURIComponent(id)}/end`, {
       method: 'POST',
       timeoutMs: END_TIMEOUT_MS,
+    });
+  }
+
+  /** Turns an invite link's token into membership of the meeting it belongs to. */
+  redeemInvite(token: string): Promise<Meeting> {
+    return this.request<Meeting>('/invites/redeem', { method: 'POST', body: { token } });
+  }
+
+  async leaveMeeting(meetingId: string): Promise<void> {
+    await this.request(`/meetings/${encodeURIComponent(meetingId)}/leave`, { method: 'POST' });
+  }
+
+  createInvite(meetingId: string, input: CreateInviteInput): Promise<CreatedInvite> {
+    return this.request<CreatedInvite>(`/meetings/${encodeURIComponent(meetingId)}/invites`, {
+      method: 'POST',
+      body: input,
+    });
+  }
+
+  async listInvites(meetingId: string): Promise<MeetingInvite[]> {
+    const body = await this.request<{ invites: MeetingInvite[] }>(`/meetings/${encodeURIComponent(meetingId)}/invites`);
+    return body.invites;
+  }
+
+  async revokeInvite(meetingId: string, inviteId: string): Promise<void> {
+    await this.request(`/meetings/${encodeURIComponent(meetingId)}/invites/${encodeURIComponent(inviteId)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async listMembers(meetingId: string): Promise<MeetingMember[]> {
+    const body = await this.request<{ members: MeetingMember[] }>(`/meetings/${encodeURIComponent(meetingId)}/members`);
+    return body.members;
+  }
+
+  async removeMember(meetingId: string, userId: string): Promise<void> {
+    await this.request(`/meetings/${encodeURIComponent(meetingId)}/members/${encodeURIComponent(userId)}`, {
+      method: 'DELETE',
     });
   }
 

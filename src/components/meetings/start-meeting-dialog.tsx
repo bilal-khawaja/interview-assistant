@@ -14,8 +14,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
-import { listMicrophones, type MicDevice } from '@/lib/mic-capture';
 import { transcriptStore } from '@/lib/transcript-client';
+import { useMicrophones } from '@/lib/use-microphones';
 import type { MeetingsState } from '@/lib/transcript-store';
 import { cn } from '@/lib/utils';
 import type { MeetingSource } from '@/types/transcript';
@@ -66,37 +66,7 @@ export function StartMeetingDialog({
     const [title, setTitle] = useState('');
     const [url, setUrl] = useState('');
     const [seconds, setSeconds] = useState(String(DEFAULT_YOUTUBE_SECONDS));
-    const [devices, setDevices] = useState<MicDevice[]>([]);
-    const [deviceId, setDeviceId] = useState('');
-    const [devicesError, setDevicesError] = useState<string | null>(null);
-
-    // Re-read the microphones whenever the dialog opens or a headset is plugged in or out.
-    useEffect(() => {
-        if (!open || source !== 'live') return;
-        let cancelled = false;
-        const refresh = async () => {
-            try {
-                const found = await listMicrophones();
-                if (cancelled) return;
-                setDevices(found);
-                setDevicesError(null);
-                setDeviceId((current) => {
-                    if (current && found.some((d) => d.deviceId === current)) return current;
-                    const saved = transcriptStore.savedMicDeviceId;
-                    if (saved && found.some((d) => d.deviceId === saved)) return saved;
-                    return found[0]?.deviceId ?? '';
-                });
-            } catch {
-                if (!cancelled) setDevicesError('Could not list microphones.');
-            }
-        };
-        void refresh();
-        navigator.mediaDevices.addEventListener('devicechange', refresh);
-        return () => {
-            cancelled = true;
-            navigator.mediaDevices.removeEventListener('devicechange', refresh);
-        };
-    }, [open, source]);
+    const { devices, deviceId, setDeviceId, error: devicesError } = useMicrophones(open && source === 'live');
 
     useEffect(() => {
         if (open) transcriptStore.clearError();

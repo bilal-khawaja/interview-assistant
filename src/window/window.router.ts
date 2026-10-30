@@ -19,6 +19,7 @@ export function createWindowRouter(
   applyOpacity: (opacity: number) => void,
   resizePill: (height: number) => void,
   hidePill: () => void,
+  copyText: (text: string) => void,
 ) {
   return t.router({
     setOpacity: t.procedure.input<SetOpacityInput>().action(async ({ input }) => {
@@ -32,6 +33,10 @@ export function createWindowRouter(
     }),
     hidePill: t.procedure.action(async () => {
       hidePill();
+    }),
+    /** Puts text on the system clipboard. The renderer's own clipboard API is refused by the permission handler. */
+    copyText: t.procedure.input<{ text: string }>().action(async ({ input }) => {
+      copyText(input.text);
     }),
   });
 }
